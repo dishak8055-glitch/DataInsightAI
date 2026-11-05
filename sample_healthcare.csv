@@ -1,0 +1,16 @@
+PatientID,Age,Gender,BloodPressure,Cholesterol,GlucoseLevel,Outcome,Email
+101,45,Male,130,240,110,1,p101@clinic.org
+102,34,Female,115,185,92,0,p102@clinic.org
+103,58,Male,145,280,165,1,p103@clinic.org
+104,29,Female,110,170,85,0,p104@clinic.org
+105,62,Female,138,260,140,1,p105@clinic.org
+106,41,Male,125,210,98,0,p106@clinic.org
+107,53,Male,140,250,150,1,p107@clinic.org
+108,38,Female,118,195,90,0,p108@clinic.org
+109,67,Male,155,295,180,1,p109@clinic.org
+110,48,Female,128,225,105,0,p110@clinic.org
+111,31,Male,120,190,88,0,p111@clinic.org
+112,55,Female,135,245,135,1,p112@clinic.org
+113,44,Male,126,215,102,0,p113@clinic.org
+114,60,Female,142,270,160,1,p114@clinic.org
+115,36,Male,122,200,94,0,p115@clinic.org

@@ -1,0 +1,21 @@
+# Python virtual environments
+.venv/
+venv/
+ENV/
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Sensitive environment variables
+.env
+
+# OS temporary files
+Thumbs.db
+.DS_Store
+
+# Temporary audio or test exports
+*.wav
+*.png
