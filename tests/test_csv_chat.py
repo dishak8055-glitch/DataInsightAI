@@ -18,7 +18,9 @@ def sample_df():
         "Age": [22, 35, 28, 42, 25],
         "Gender": ["Female", "Male", "Female", "Male", "Female"],
         "AnnualIncome": [25000, 45000, 32000, 60000, 28000],
-        "SpendingScore": [80, 45, 90, 30, 75]
+        "SpendingScore": [80, 45, 90, 30, 75],
+        "Department": ["Sales", "Engineering", "Sales", "HR", "Sales"],
+        "Location": ["West", "East", "West", "North", "East"]
     })
 
 
@@ -62,6 +64,76 @@ def test_fast_local_plan_groupby(sample_df):
     assert plan["operation"] == "groupby_mean"
     assert plan["column"] == "AnnualIncome"
     assert plan["group_column"] == "Gender"
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_operation", "group_column"),
+    [
+        ("How many employees are in each department?", "groupby_count", "Department"),
+        (
+            "Which department has the highest number of employees?",
+            "groupby_max_count",
+            "Department"
+        ),
+        (
+            "Show department-wise employee distribution.",
+            "groupby_count",
+            "Department"
+        ),
+        ("Which location has the most employees?", "groupby_max_count", "Location")
+    ]
+)
+def test_employee_category_questions_use_safe_group_counts(
+    sample_df, question, expected_operation, group_column
+):
+    result = answer_question(sample_df, question)
+
+    assert result["source"] == "fast_pandas"
+    assert result["plan"]["operation"] == expected_operation
+    assert result["plan"]["group_column"] == group_column
+    assert group_column in result["explanation"]
+    assert "maximum" not in result["explanation"].lower()
+    if expected_operation == "groupby_count":
+        assert result["execution"]["result"] == (
+            {"Sales": 3, "Engineering": 1, "HR": 1}
+        )
+        assert "employee counts" in result["explanation"].lower()
+    else:
+        expected_groups = {"Sales"} if group_column == "Department" else {"West", "East"}
+        assert set(result["execution"]["result"]["groups"]) == expected_groups
+        assert result["execution"]["result"]["count"] == (
+            3 if group_column == "Department" else 2
+        )
+        assert "employees" in result["explanation"].lower()
+
+
+def test_group_counts_include_missing_values_and_top_group_ties():
+    df = pd.DataFrame({
+        "Team": ["A", "A", "B", "B", None],
+        "Score": [1, 2, 3, 4, 5]
+    })
+
+    counts = execute_plan(df, {
+        "operation": "groupby_count",
+        "group_column": "Team"
+    })
+    top_group = execute_plan(df, {
+        "operation": "groupby_max_count",
+        "group_column": "Team"
+    })
+
+    assert counts["result"] == {"A": 2, "B": 2, "Missing": 1}
+    assert top_group["result"]["groups"] == ["A", "B"]
+    assert top_group["result"]["count"] == 2
+    assert "maximum" not in counts["pandas_logic"]
+
+
+def test_group_count_rejects_unknown_group_column(sample_df):
+    with pytest.raises(ValueError, match="Group column"):
+        execute_plan(sample_df, {
+            "operation": "groupby_count",
+            "group_column": "Unknown"
+        })
 
 
 def test_execute_plan_mean(sample_df):

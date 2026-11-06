@@ -32,6 +32,8 @@ ALLOWED_OPERATIONS = {
     "unique_count",
     "groupby_mean",
     "groupby_sum",
+    "groupby_count",
+    "groupby_max_count",
     "correlation"
 }
 
@@ -149,6 +151,33 @@ def fast_local_plan(df, question):
             "second_column": None,
             "source": "fast_pandas"
         }
+
+    employee_count_query = any(term in q for term in [
+        "employee", "employees", "staff", "people"
+    ])
+    asks_for_top_group = (
+        any(term in q for term in ["most", "highest", "largest", "greatest"])
+        and employee_count_query
+    )
+    asks_for_group_counts = (
+        employee_count_query
+        or any(term in q for term in ["distribution", "counts", "how many"])
+    ) and (
+        any(term in q for term in ["each", "every", "per", " by ", "grouped by"])
+        or re.search(r"\b[\w ]+-wise\b", q) is not None
+    )
+    if asks_for_top_group or asks_for_group_counts:
+        if matched_cols:
+            group_col = matched_cols[-1]
+            return {
+                "operation": (
+                    "groupby_max_count" if asks_for_top_group else "groupby_count"
+                ),
+                "column": None,
+                "group_column": group_col,
+                "second_column": None,
+                "source": "fast_pandas"
+            }
 
     # 2. Dataset describe / summary
     if any(pat in q for pat in ["describe dataset", "statistical summary", "overall summary", "summarize data", "data summary"]):
@@ -270,6 +299,8 @@ Allowed operations:
 - unique_count (column: <col>)
 - groupby_mean (column: <numeric_col>, group_column: <category_col>)
 - groupby_sum (column: <numeric_col>, group_column: <category_col>)
+- groupby_count (group_column: <category_col>)
+- groupby_max_count (group_column: <category_col>)
 - correlation (column: <col1>, second_column: <col2>)
 
 Return ONLY valid JSON in this exact structure with no Markdown wrapping:
@@ -334,8 +365,11 @@ def execute_plan(df, plan):
             "pandas_logic": "df.describe(include='all')"
         }
 
-    # Column existence check
-    if column not in df.columns:
+    # Column existence check for operations that use a value column.
+    if (
+        operation not in {"groupby_count", "groupby_max_count"}
+        and column not in df.columns
+    ):
         raise ValueError(f"Column '{column}' does not exist in dataset.")
 
     # 3. Frequency distribution
@@ -345,6 +379,38 @@ def execute_plan(df, plan):
         return {
             "result": result,
             "pandas_logic": f"df['{column}'].value_counts().head(15)"
+        }
+
+    # 3a. Counts by category and highest-count category
+    if operation in {"groupby_count", "groupby_max_count"}:
+        if group_column not in df.columns:
+            raise ValueError(f"Group column '{group_column}' not found.")
+
+        grouped = df.groupby(group_column, dropna=False).size()
+        counts = {
+            ("Missing" if pd.isna(key) else str(key)): int(value)
+            for key, value in grouped.items()
+        }
+        pandas_logic = f"df.groupby('{group_column}', dropna=False).size()"
+        if operation == "groupby_count":
+            return {
+                "result": counts,
+                "pandas_logic": pandas_logic
+            }
+
+        if not counts:
+            raise ValueError(f"Column '{group_column}' has no groups to count.")
+        highest_count = max(counts.values())
+        highest_groups = [
+            group for group, count in counts.items() if count == highest_count
+        ]
+        return {
+            "result": {
+                "groups": highest_groups,
+                "count": highest_count,
+                "group_column": str(group_column)
+            },
+            "pandas_logic": f"{pandas_logic}.idxmax()"
         }
 
     # 4. Unique count
@@ -467,6 +533,30 @@ def generate_local_explanation(question, plan, execution):
     if op == "value_counts":
         lines = [f"- **{k}**: {v:,}" for k, v in res.items()]
         return f"Frequency distribution for **{col}**:\n\n" + "\n".join(lines)
+
+    if op == "groupby_count":
+        lines = [f"- **{k}**: {v:,}" for k, v in res.items()]
+        count_label = (
+            "employee counts"
+            if any(term in question.lower() for term in ["employee", "staff", "people"])
+            else "record counts"
+        )
+        return (
+            f"{count_label.capitalize()} for each **{plan['group_column']}**:\n\n"
+            + "\n".join(lines)
+        )
+
+    if op == "groupby_max_count":
+        group_names = ", ".join(f"**{group}**" for group in res["groups"])
+        count_label = (
+            "employees"
+            if any(term in question.lower() for term in ["employee", "staff", "people"])
+            else "records"
+        )
+        return (
+            f"**{res['group_column']}** with the most {count_label}: {group_names} "
+            f"({res['count']:,} {count_label})."
+        )
 
     if op in {"groupby_mean", "groupby_sum"}:
         agg_label = "average" if op == "groupby_mean" else "total sum"
