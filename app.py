@@ -24,6 +24,11 @@ from modules.visualization import (
 )
 from modules.recommender import recommend_task
 from modules.csv_chat import answer_question
+from modules.dataset_catalog import (
+    CURATED_DATASETS,
+    get_dataset_metadata,
+    load_curated_dataset
+)
 
 # GenAI Units U1 to U5 modules
 from modules.gen_vs_disc import analyze_learning_paradigms
@@ -88,12 +93,13 @@ st.divider()
 st.sidebar.header("Dataset Source")
 data_source = st.sidebar.radio(
     "Choose data source:",
-    ["Upload CSV File", "Use Sample Dataset"],
+    ["Upload CSV File", "Use Sample Dataset", "Use Curated Public Dataset"],
     index=1
 )
 
 df = None
 selected_sample_name = ""
+selected_curated_dataset = None
 
 if data_source == "Upload CSV File":
     uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type=["csv"])
@@ -106,7 +112,7 @@ if data_source == "Upload CSV File":
         except Exception as err:
             st.sidebar.error(f"Error reading CSV: {err}")
             st.stop()
-else:
+elif data_source == "Use Sample Dataset":
     sample_options = {
         "Customer Segmentation (sample_customers.csv)": "sample_customers.csv",
         "Healthcare & Clinical Risk (sample_healthcare.csv)": "sample_healthcare.csv",
@@ -121,6 +127,21 @@ else:
         df = pd.read_csv(selected_sample_name)
     else:
         st.sidebar.error(f"Sample file {selected_sample_name} not found.")
+else:
+    selected_curated_dataset = st.sidebar.selectbox(
+        "Select Curated Dataset:",
+        list(CURATED_DATASETS)
+    )
+    try:
+        df = load_curated_dataset(selected_curated_dataset)
+        dataset_metadata = get_dataset_metadata(selected_curated_dataset)
+        st.sidebar.markdown(
+            f"[Source: {dataset_metadata['source']}]({dataset_metadata['source_url']})"
+        )
+        st.sidebar.caption(f"License: {dataset_metadata['license']}")
+        st.sidebar.caption(f"Citation: {dataset_metadata['citation']}")
+    except Exception as err:
+        st.sidebar.error(f"Error loading curated dataset: {err}")
 
 if df is None:
     st.info("Upload a CSV file or select a sample dataset from the sidebar to begin analysis.")

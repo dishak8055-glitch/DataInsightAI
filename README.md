@@ -94,6 +94,28 @@ graph TD
 
 ---
 
+## Bundled Curated Datasets and Attribution
+
+The original sample datasets remain in the repository root (`sample_customers.csv`,
+`sample_healthcare.csv`, and `sample_housing.csv`). Four additional public datasets
+are bundled under `datasets/` and are selected separately in the app. They are read
+from local files at runtime; the app does not download them on startup.
+
+| Dataset | Bundled file | Source and citation | License |
+| --- | --- | --- | --- |
+| Adult Census Income | `datasets/adult_census_income.csv` | Barry Becker and Ronny Kohavi (1996), [UCI Adult](https://archive.ics.uci.edu/dataset/2/adult), DOI [10.24432/C5XW20](https://doi.org/10.24432/C5XW20) | CC BY 4.0 |
+| Palmer Penguins | `datasets/palmer_penguins.csv` | Allison Horst, Alison Hill, and Kristen Gorman (2020), [palmerpenguins v0.1.0](https://doi.org/10.5281/zenodo.3960218); data collected by Kristen Gorman and Palmer Station LTER | CC0 |
+| Wine Quality Red | `datasets/wine_quality_red.csv` | Paulo Cortez, A. Cerdeira, F. Almeida, T. Matos, and J. Reis (2009), [UCI Wine Quality](https://archive.ics.uci.edu/dataset/186/wine+quality), DOI [10.24432/C56S3T](https://doi.org/10.24432/C56S3T) | CC BY 4.0 |
+| Wine Quality White | `datasets/wine_quality_white.csv` | Paulo Cortez, A. Cerdeira, F. Almeida, T. Matos, and J. Reis (2009), [UCI Wine Quality](https://archive.ics.uci.edu/dataset/186/wine+quality), DOI [10.24432/C56S3T](https://doi.org/10.24432/C56S3T) | CC BY 4.0 |
+
+Adult CSV loading trims whitespace, converts `?` markers to missing values, and
+normalizes income labels such as `>50K.` to `>50K`. Palmer Penguins missing values
+and all categorical labels are preserved. Wine files are parsed with their
+semicolon delimiter. None of the loaders imputes or drops rows. The selected
+dataset's source, citation, and license are shown in the sidebar.
+
+---
+
 ## Installation & Local Execution
 
 ### Prerequisites
