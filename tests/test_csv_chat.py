@@ -97,3 +97,29 @@ def test_answer_question_fast_path(sample_df):
     assert res["used_fallback"] is False
     assert "Age" in res["explanation"]
     assert res["latency_ms"] < 1000  # fast-path should execute in < 50ms locally
+
+
+def test_unsupported_question_does_not_return_a_misleading_row_count(
+    sample_df, monkeypatch
+):
+    def fail_gemini(*args, **kwargs):
+        raise RuntimeError("Gemini unavailable")
+
+    monkeypatch.setattr("modules.csv_chat.interpret_question", fail_gemini)
+    with pytest.raises(RuntimeError, match="could not be resolved locally"):
+        answer_question(sample_df, "Who won the match yesterday?")
+
+
+def test_gemini_failure_uses_clear_local_fast_path(sample_df, monkeypatch):
+    def fail_gemini(*args, **kwargs):
+        raise TimeoutError("simulated provider timeout")
+
+    monkeypatch.setattr("modules.csv_chat.interpret_question", fail_gemini)
+    result = answer_question(
+        sample_df,
+        "average Age",
+        use_fast_path=False
+    )
+    assert result["source"] == "local_fallback"
+    assert result["used_fallback"] is True
+    assert result["execution"]["result"]["Age"] == 30.4

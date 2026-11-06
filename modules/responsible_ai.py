@@ -135,7 +135,12 @@ def detect_class_imbalance(df, target_column):
     }
 
 
-def evaluate_demographic_fairness(df, sensitive_column, outcome_column):
+def evaluate_demographic_fairness(
+    df,
+    sensitive_column,
+    outcome_column,
+    positive_label=None
+):
     """
     Calculates Disparate Impact Ratio (DIR) across demographic slices:
     DIR = P(Y=1 | Unprivileged) / P(Y=1 | Privileged)
@@ -144,31 +149,56 @@ def evaluate_demographic_fairness(df, sensitive_column, outcome_column):
     if sensitive_column not in df.columns or outcome_column not in df.columns:
         return None
 
-    # Filter complete pairs
-    sub = df[[sensitive_column, outcome_column]].dropna()
+    if sensitive_column == outcome_column:
+        return None
+
+    # Build paired Series independently so selecting the same column twice cannot
+    # turn sub[sensitive_column] into a DataFrame.
+    sub = pd.DataFrame({
+        "_group": df[sensitive_column],
+        "_outcome": df[outcome_column],
+    }).dropna()
     if sub.empty:
         return None
 
-    groups = sub[sensitive_column].unique()
+    group_sizes = sub["_group"].value_counts()
+    supported_groups = group_sizes[group_sizes >= 2].index
+    sub = sub[sub["_group"].isin(supported_groups)]
+
+    groups = sub["_group"].unique()
     if len(groups) < 2:
         return None
 
-    # Binary positive rate if outcome has 2 classes, else mean of outcome if numeric
-    is_numeric = pd.api.types.is_numeric_dtype(sub[outcome_column])
+    outcome_values = sub["_outcome"].unique()
+    is_numeric = pd.api.types.is_numeric_dtype(sub["_outcome"])
+    binary_numeric = is_numeric and len(outcome_values) == 2
+    use_positive_rate = (
+        positive_label is not None or not is_numeric or binary_numeric
+    )
+    if use_positive_rate:
+        if positive_label is None:
+            if binary_numeric and 1 in outcome_values:
+                positive_label = 1
+            else:
+                return None
+        if positive_label not in outcome_values:
+            raise ValueError("positive_label must be a value present in the outcome column.")
+    elif (sub["_outcome"] < 0).any():
+        return None
 
     rates = {}
     for g in groups:
-        g_data = sub[sub[sensitive_column] == g][outcome_column]
-        if is_numeric:
-            rates[str(g)] = float(g_data.mean())
+        g_data = sub.loc[sub["_group"] == g, "_outcome"]
+        if use_positive_rate:
+            rates[str(g)] = float((g_data == positive_label).mean())
         else:
-            # Positive rate is proportion of the first class
-            pos_class = sub[outcome_column].iloc[0]
-            rates[str(g)] = float((g_data == pos_class).mean())
+            rates[str(g)] = float(g_data.mean())
 
     sorted_groups = sorted(rates.items(), key=lambda x: x[1], reverse=True)
     priv_group, max_rate = sorted_groups[0]
     unpriv_group, min_rate = sorted_groups[-1]
+    if max_rate <= 0:
+        return None
 
     disparate_impact = round(min_rate / max(1e-6, max_rate), 3)
     violates_80_rule = disparate_impact < 0.80
@@ -185,6 +215,7 @@ def evaluate_demographic_fairness(df, sensitive_column, outcome_column):
         "group_rates": rates,
         "privileged_group": priv_group,
         "unprivileged_group": unpriv_group,
+        "positive_label": positive_label,
         "recommendation": (
             "Examine whether the model learns spurious correlations from this protected attribute. "
             "Consider Fairlearn demographic parity constraints or re-weighing training samples."
@@ -206,8 +237,8 @@ def verify_hallucination(ai_text, df):
 
     if not significant_numbers:
         return {
-            "grounding_score": 100.0,
-            "hallucination_risk": "Low",
+            "grounding_score": None,
+            "hallucination_risk": "Not assessed",
             "verified_facts": 0,
             "unverified_facts": 0,
             "details": "No numerical claims detected in text."
@@ -221,6 +252,8 @@ def verify_hallucination(ai_text, df):
     for col in df.columns:
         if pd.api.types.is_numeric_dtype(df[col]):
             s = df[col].dropna()
+            if s.empty:
+                continue
             for v in s.head(50):
                 known_values.add(round(float(v), 2))
             known_values.add(round(float(s.mean()), 2))
@@ -250,7 +283,7 @@ def verify_hallucination(ai_text, df):
     }
 
 
-def audit_dataset_license(license_choice="CC-BY 4.0"):
+def audit_dataset_license(license_choice="Unknown / unlisted"):
     """
     Provides IP, copyright, and compliance guidance for tabular and generative AI training.
     """
@@ -298,7 +331,18 @@ def audit_dataset_license(license_choice="CC-BY 4.0"):
             "guidance": "STRICT RESTRICTION: Not permitted for commercial products or monetized LLM training pipelines."
         }
     }
-    return licenses.get(license_choice, licenses["CC-BY 4.0"])
+    if license_choice in licenses:
+        return licenses[license_choice]
+    return {
+        "commercial_use": False,
+        "attribution_required": True,
+        "derivatives_allowed": False,
+        "ai_training_safe": False,
+        "guidance": (
+            "License is unknown or not listed. Review the dataset's source terms and "
+            "obtain permission before redistribution, commercial use, or model training."
+        )
+    }
 
 
 def generate_model_card(df, target_column=None, recommended_task="Classification"):
@@ -334,13 +378,14 @@ def generate_model_card(df, target_column=None, recommended_task="Classification
 
     card_markdown += f"""
 ## 4. Generative AI & Safety Guardrails
-- **Prompt Injection Defense:** Strict input sanitization and operation whitelist.
-- **Code Execution Policy:** No unrestricted `eval()` or `exec()` invoked. All pandas logic is statically bounded.
-- **Hallucination Evaluation:** AI claims are cross-referenced with deterministic pandas aggregations.
+- **Code Execution Policy:** No unrestricted `eval()` or `exec()` is used. Chat requests map to a bounded operation whitelist.
+- **Privacy:** Uploaded CSVs are processed in the app session; complex chat requests and opted-in chart images are sent to Gemini when configured. Do not upload sensitive data unless authorized.
+- **Hallucination Evaluation:** A heuristic checks extracted numeric claims against sample values and summary statistics; it is not a comprehensive factuality or safety guarantee.
+- **Privacy Limitations:** Synthetic records are not differentially private and may reproduce information from small datasets. Do not treat generated rows as anonymized.
 
 ## 5. Licensing & Intellectual Property
-- **Default License:** CC-BY 4.0 (Attribution)
-- **Redistribution Rights:** Free for educational and research use with citation.
+- **Dataset License:** Not provided to the application; users must verify source terms before training, synthesis, or redistribution.
+- **Application License:** MIT (subject to third-party dependency and dataset licenses).
 
 ---
 *Generated automatically by DataInsight AI Responsible AI Module.*

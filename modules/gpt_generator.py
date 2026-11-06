@@ -13,11 +13,11 @@ except ImportError:
     HAS_GENAI = False
 
 
-def generate_dataset_story(df, target_column=None, focus_mode="Executive Summary"):
+def generate_dataset_story(df, target_column=None, focus_mode="Executive Summary", use_api=True):
     """
     GPT-style autoregressive narrative generator.
     Produces comprehensive, viva-ready analytical reports and data stories.
-    Uses Gemini when API key is configured, with an offline structured generator fallback.
+    Uses Gemini when API key is configured and use_api=True, with an offline structured generator fallback.
     """
     total_rows = len(df)
     total_cols = len(df.columns)
@@ -33,9 +33,10 @@ def generate_dataset_story(df, target_column=None, focus_mode="Executive Summary
         "target": target_column or "None specified"
     }
 
-    # Attempt LLM generation if available
+    # Attempt LLM generation if requested and available
     api_key = os.getenv("GEMINI_API_KEY")
-    if HAS_GENAI and api_key:
+    api_error = None
+    if use_api and HAS_GENAI and api_key:
         try:
             client = genai.Client(api_key=api_key)
             prompt = f"""
@@ -60,8 +61,8 @@ Guidelines:
                 "generator_type": "Transformer Autoregressive (Gemini Flash)",
                 "facts": facts
             }
-        except Exception:
-            pass
+        except Exception as exc:
+            api_error = f"{type(exc).__name__}: {exc}"
 
     # Offline deterministic generator fallback
     p1 = (
@@ -81,13 +82,17 @@ Guidelines:
     p3 = (
         "From an engineering perspective, establishing a discriminative baseline (such as a Random Forest or Logistic Classifier) "
         "provides an objective benchmark. Subsequently, generative approaches such as CTGAN or Variational Autoencoders can be applied "
-        "to augment rare cohorts, mitigate class imbalances, or synthesize privacy-compliant test datasets."
+        "to augment rare cohorts or create test data. Synthetic output is not guaranteed to protect privacy."
     )
 
     return {
         "narrative": f"{p1}\n\n{p2}\n\n{p3}",
-        "generator_type": "Deterministic Autoregressive Fallback",
-        "facts": facts
+        "generator_type": (
+            "Deterministic fallback (Gemini request failed)"
+            if api_error else "Deterministic Autoregressive Fallback"
+        ),
+        "facts": facts,
+        "api_error": api_error
     }
 
 

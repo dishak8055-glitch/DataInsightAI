@@ -20,3 +20,14 @@ def test_column_similarity_and_clustering():
     sim_mat = res["similarity_matrix"]
     assert sim_mat.loc["CustomerID", "CustomerID"] == 1.0
     assert res["figure"] is not None
+    assert "TF-IDF baseline" in res["embedding_backend"]
+
+
+def test_column_similarity_rejects_unknown_embedding_backend():
+    df = pd.DataFrame({"first": [1], "second": [2]})
+    try:
+        group_similar_columns_bert(df, embedding_backend="unknown")
+    except ValueError as exc:
+        assert "embedding_backend" in str(exc)
+    else:
+        raise AssertionError("An unknown embedding backend should be rejected.")

@@ -12,7 +12,7 @@ def test_generate_dataset_story():
         "Age": [22, 35, 28],
         "SpendingScore": [80, 45, 90]
     })
-    res = generate_dataset_story(df, target_column="SpendingScore")
+    res = generate_dataset_story(df, target_column="SpendingScore", use_api=False)
     assert "narrative" in res
     assert len(res["narrative"]) > 50
     assert "facts" in res

@@ -1,12 +1,16 @@
 # tests/test_multimodal.py
 
 import os
+import io
 import pandas as pd
+from PIL import Image
 from modules.multimodal import (
+    analyze_chart_image,
     generate_audio_summary,
     generate_dataset_infographic_card,
     get_multimodal_genai_survey
 )
+import pytest
 
 
 def test_generate_dataset_infographic_card():
@@ -40,3 +44,35 @@ def test_multimodal_genai_survey():
     assert any("Image" in m for m in modalities)
     assert any("Video" in m for m in modalities)
     assert any("Music" in m for m in modalities)
+
+
+def test_chart_image_analysis_rejects_empty_image():
+    with pytest.raises(ValueError, match="non-empty"):
+        analyze_chart_image(b"", "image/png")
+
+
+def test_chart_image_analysis_rejects_unsupported_mime_type():
+    with pytest.raises(ValueError, match="Supported image types"):
+        analyze_chart_image(b"image bytes", "application/pdf")
+
+
+def test_chart_image_analysis_sends_valid_image_to_gemini(monkeypatch):
+    image_buffer = io.BytesIO()
+    Image.new("RGB", (10, 10), color="white").save(image_buffer, format="PNG")
+    calls = {}
+
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            calls.update(kwargs)
+            return type("Response", (), {"text": "The chart is a line chart."})()
+
+    class FakeClient:
+        models = FakeModels()
+
+    monkeypatch.setattr("modules.multimodal.HAS_GENAI", True)
+    monkeypatch.setattr("modules.multimodal.get_gemini_client", lambda: FakeClient())
+    result = analyze_chart_image(
+        image_buffer.getvalue(), "image/png", "Describe the trend"
+    )
+    assert result == "The chart is a line chart."
+    assert calls["model"] == "gemini-3.8-flash"

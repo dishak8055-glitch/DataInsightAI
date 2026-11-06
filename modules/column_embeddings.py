@@ -1,12 +1,17 @@
 # modules/column_embeddings.py
 
 import re
+from functools import lru_cache
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import AgglomerativeClustering
+
+
+DEFAULT_BERT_MODEL = "prajjwal1/bert-tiny"
 
 
 def generate_column_context(df, col):
@@ -35,45 +40,88 @@ def generate_column_context(df, col):
     return f"{words} {words} column feature {dtype_str} unique {n_unique} {stat_tokens}"
 
 
-def group_similar_columns_bert(df, similarity_threshold=0.35):
+@lru_cache(maxsize=4)
+def _load_bert_encoder(model_name):
+    try:
+        from transformers import AutoModel, AutoTokenizer
+    except ImportError as exc:
+        raise RuntimeError(
+            "BERT embeddings require the 'transformers' package. Install requirements.txt."
+        ) from exc
+
+    return AutoTokenizer.from_pretrained(model_name), AutoModel.from_pretrained(model_name)
+
+
+@lru_cache(maxsize=32)
+def _encode_contexts_with_bert(contexts, model_name):
+    import torch
+
+    tokenizer, model = _load_bert_encoder(model_name)
+    model.eval()
+    encoded = tokenizer(
+        list(contexts),
+        padding=True,
+        truncation=True,
+        max_length=128,
+        return_tensors="pt"
+    )
+    with torch.inference_mode():
+        hidden = model(**encoded).last_hidden_state
+        mask = encoded["attention_mask"].unsqueeze(-1)
+        embeddings = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
+        embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+    return embeddings.cpu().numpy()
+
+
+def group_similar_columns_bert(
+    df,
+    similarity_threshold=0.35,
+    embedding_backend="tfidf",
+    model_name=DEFAULT_BERT_MODEL
+):
     """
-    Uses subword and word-level semantic representations (BERT-family principles)
-    to compute pairwise cosine similarities and group semantically similar columns.
+    Groups columns using contextual BERT embeddings or a lightweight TF-IDF baseline.
+    BERT weights are downloaded from Hugging Face on first use and cached locally.
     """
     columns = list(df.columns)
     if len(columns) < 2:
         return {
             "clusters": {0: columns},
-            "similarity_matrix": pd.DataFrame([[1.0]], index=columns, columns=columns),
+            "similarity_matrix": pd.DataFrame(
+                np.eye(len(columns)), index=columns, columns=columns
+            ),
             "figure": None,
-            "redundancy_alerts": []
+            "redundancy_alerts": [],
+            "total_clusters": len(columns),
+            "embedding_backend": embedding_backend
         }
 
-    # Generate rich semantic context documents for each column
     contexts = [generate_column_context(df, c) for c in columns]
+    if embedding_backend == "bert":
+        embeddings = _encode_contexts_with_bert(tuple(contexts), model_name)
+        sim_matrix = cosine_similarity(embeddings)
+        backend_label = f"BERT embeddings ({model_name})"
+    elif embedding_backend == "tfidf":
+        vectorizer = TfidfVectorizer(
+            ngram_range=(1, 3),
+            analyzer="char_wb",
+            min_df=1,
+            sublinear_tf=True
+        )
+        tfidf_matrix = vectorizer.fit_transform(contexts)
+        sim_matrix = cosine_similarity(tfidf_matrix)
+        backend_label = "Character n-gram TF-IDF baseline (not a BERT model)"
+    else:
+        raise ValueError("embedding_backend must be either 'bert' or 'tfidf'.")
 
-    # Subword character n-gram + word TF-IDF vectorizer (captures subword morphological roots)
-    vectorizer = TfidfVectorizer(
-        ngram_range=(1, 3),
-        analyzer="char_wb",
-        min_df=1,
-        sublinear_tf=True
-    )
-
-    tfidf_matrix = vectorizer.fit_transform(contexts)
-    # Cosine similarity matrix S in [-1, 1], normalized to [0, 1]
-    sim_matrix = cosine_similarity(tfidf_matrix)
     sim_matrix = np.clip(sim_matrix, 0.0, 1.0)
-    # Ensure diagonal is exactly 1.0
     np.fill_diagonal(sim_matrix, 1.0)
 
     sim_df = pd.DataFrame(sim_matrix, index=columns, columns=columns).round(3)
 
-    # Distance matrix for agglomerative clustering
     dist_matrix = 1.0 - sim_matrix
     np.fill_diagonal(dist_matrix, 0.0)
 
-    # Cluster columns with Agglomerative Clustering
     clustering = AgglomerativeClustering(
         n_clusters=None,
         metric="precomputed",
@@ -86,7 +134,6 @@ def group_similar_columns_bert(df, similarity_threshold=0.35):
     for col, label in zip(columns, labels):
         clusters.setdefault(int(label), []).append(col)
 
-    # Identify potential collinear / redundant column pairs
     redundancy_alerts = []
     for i in range(len(columns)):
         for j in range(i + 1, len(columns)):
@@ -99,14 +146,13 @@ def group_similar_columns_bert(df, similarity_threshold=0.35):
                     "note": f"High semantic similarity between '{columns[i]}' and '{columns[j]}'. Check for multi-collinearity or redundant encoding."
                 })
 
-    # Plotly interactive similarity heatmap
     fig = px.imshow(
         sim_df,
         text_auto=True,
         color_continuous_scale="Tealrose",
         zmin=0.0,
         zmax=1.0,
-        title="BERT-Family Column Semantic Similarity Matrix",
+        title=f"Column Similarity Matrix — {backend_label}",
         template="plotly_dark"
     )
     fig.update_layout(
@@ -120,5 +166,6 @@ def group_similar_columns_bert(df, similarity_threshold=0.35):
         "similarity_matrix": sim_df,
         "figure": fig,
         "redundancy_alerts": redundancy_alerts,
-        "total_clusters": len(clusters)
+        "total_clusters": len(clusters),
+        "embedding_backend": backend_label
     }

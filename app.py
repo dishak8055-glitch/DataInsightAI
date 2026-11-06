@@ -3,6 +3,7 @@
 import os
 import io
 import time
+import hashlib
 import pandas as pd
 import streamlit as st
 
@@ -39,6 +40,7 @@ from modules.attention_explainer import (
 from modules.column_embeddings import group_similar_columns_bert
 from modules.gpt_generator import generate_dataset_story, get_transformer_architectures_comparison
 from modules.multimodal import (
+    analyze_chart_image,
     generate_audio_summary,
     generate_dataset_infographic_card,
     get_multimodal_genai_survey
@@ -46,7 +48,8 @@ from modules.multimodal import (
 from modules.synthetic_data import (
     TabularCTGAN,
     compare_real_and_synthetic,
-    create_side_by_side_distribution
+    create_side_by_side_distribution,
+    sanitize_spreadsheet_formulas
 )
 from modules.responsible_ai import (
     detect_sensitive_columns,
@@ -69,12 +72,12 @@ st.set_page_config(
 # APPLICATION HEADER
 # -----------------------------------------------------------------------------
 st.title("DataInsight AI")
-st.caption("Final-Year Generative AI Project (P10) | Antigravity Engine")
+st.caption("Final-Year Generative AI Project (P10)")
 st.markdown(
     """
     DataInsight AI combines deterministic pandas data profiling with Generative AI foundations:
-    transformer natural-language questioning, PyTorch CTGAN tabular synthesis, BERT-family column embeddings,
-    multimodal audio/visual synthesis, and Responsible AI compliance audits.
+    transformer natural-language questioning, a PyTorch conditional tabular GAN, optional BERT embeddings,
+    chart-image understanding, local speech synthesis, and Responsible AI screening.
     """
 )
 st.divider()
@@ -149,7 +152,7 @@ tabs = st.tabs([
     "4. Dataset Chat",
     "5. GenAI Foundations (U1 & U2)",
     "6. BERT & Multimodal (U3)",
-    "7. PyTorch CTGAN Synthesis (U4)",
+    "7. PyTorch Conditional GAN (U4)",
     "8. Responsible AI & Model Card (U5)"
 ])
 
@@ -158,7 +161,7 @@ tabs = st.tabs([
 # =============================================================================
 with tabs[0]:
     st.header("1. Dataset Preview")
-    st.dataframe(df.head(10), width="stretch")
+    st.dataframe(df.head(10))
     st.caption(f"Displaying first 10 rows out of {len(df):,} total rows.")
 
     st.header("2. Dataset Overview")
@@ -190,13 +193,13 @@ with tabs[0]:
     st.header("4. Statistical Summary")
     summary = get_statistical_summary(df)
     if not summary.empty:
-        st.dataframe(summary, width="stretch")
+        st.dataframe(summary)
     else:
         st.info("No numerical features available for summary.")
 
     st.header("5. Missing Value Analysis")
     missing_report = get_missing_value_report(df)
-    st.dataframe(missing_report, width="stretch")
+    st.dataframe(missing_report)
     if total_missing == 0:
         st.success("Dataset is complete: zero missing values detected.")
     else:
@@ -224,7 +227,7 @@ with tabs[1]:
             sel_col = st.selectbox("Select numerical column:", numerical_columns, key="v_hist")
             fig = create_histogram(df, sel_col)
             if fig:
-                st.plotly_chart(fig, width="stretch")
+                st.plotly_chart(fig)
         else:
             st.info("No numerical features available.")
 
@@ -233,7 +236,7 @@ with tabs[1]:
             sel_col = st.selectbox("Select numerical column:", numerical_columns, key="v_box")
             fig = create_boxplot(df, sel_col)
             if fig:
-                st.plotly_chart(fig, width="stretch")
+                st.plotly_chart(fig)
         else:
             st.info("No numerical features available.")
 
@@ -242,7 +245,7 @@ with tabs[1]:
             sel_col = st.selectbox("Select categorical column:", categorical_columns, key="v_bar")
             fig = create_bar_chart(df, sel_col)
             if fig:
-                st.plotly_chart(fig, width="stretch")
+                st.plotly_chart(fig)
         else:
             st.info("No categorical features available.")
 
@@ -256,7 +259,7 @@ with tabs[1]:
             color_c = st.selectbox("Color grouping (optional):", ["None"] + categorical_columns, key="v_scat_c")
             fig = create_scatter_plot(df, x_c, y_c, None if color_c == "None" else color_c)
             if fig:
-                st.plotly_chart(fig, width="stretch")
+                st.plotly_chart(fig)
         else:
             st.info("At least two numerical columns are required for a scatter plot.")
 
@@ -269,7 +272,7 @@ with tabs[1]:
                 v_cat = st.selectbox("Category feature (optional):", ["None"] + categorical_columns, key="v_vln_cat")
             fig = create_violin_plot(df, v_num, None if v_cat == "None" else v_cat)
             if fig:
-                st.plotly_chart(fig, width="stretch")
+                st.plotly_chart(fig)
         else:
             st.info("No numerical features available.")
 
@@ -277,7 +280,7 @@ with tabs[1]:
         if len(numerical_columns) >= 2:
             fig = create_correlation_heatmap(df, numerical_columns)
             if fig:
-                st.plotly_chart(fig, width="stretch")
+                st.plotly_chart(fig)
         else:
             st.info("At least two numerical columns are needed for a correlation heatmap.")
 
@@ -381,7 +384,7 @@ with tabs[3]:
 # TAB 5: GENAI FOUNDATIONS & ARCHITECTURES (U1 & U2)
 # =============================================================================
 with tabs[4]:
-    st.header("Generative AI Foundations & Architectures (Units U1 & U2)")
+    st.header("Generative AI Foundations & Architectures")
 
     # 1. Learning Paradigms & Lifecycle
     st.subheader("1. Generative vs. Discriminative Learning")
@@ -439,13 +442,13 @@ with tabs[4]:
         sim_top_p = st.slider("Top-P (Nucleus):", min_value=0.1, max_value=1.0, value=0.9, step=0.05)
 
     sim_df = simulate_sampling_distribution(temperature=sim_temp, top_k=sim_top_k, top_p=sim_top_p)
-    st.dataframe(sim_df, width="stretch")
+    st.dataframe(sim_df)
 
     st.divider()
 
     # 4. Fine-Tuning vs Prompt-Based Learning
     st.subheader("4. Fine-Tuning vs. Prompt-Based Learning Comparison")
-    st.dataframe(get_comparison_matrix(), width="stretch")
+    st.dataframe(get_comparison_matrix())
 
     st.markdown("#### Parameter-Efficient Fine-Tuning (LoRA) Calculator")
     l_c1, l_c2 = st.columns(2)
@@ -470,7 +473,7 @@ with tabs[4]:
     att_res = compute_scaled_dot_product_attention(list(df.columns[:8]))
     if att_res and att_res["figure"]:
         st.latex(att_res["formula"])
-        st.plotly_chart(att_res["figure"], width="stretch")
+        st.plotly_chart(att_res["figure"])
 
     st.subheader("6. GAN vs. VAE Comparative Architecture")
     gan_vae = get_gan_vs_vae_breakdown()
@@ -488,27 +491,37 @@ with tabs[4]:
 # TAB 6: BERT & MULTIMODAL STUDIO (U3)
 # =============================================================================
 with tabs[5]:
-    st.header("BERT Semantic Embeddings & Multimodal Studio (Unit U3)")
+    st.header("BERT Semantic Embeddings & Multimodal Studio")
 
-    # 1. BERT-Family Column Grouping
-    st.subheader("1. BERT-Family Embeddings to Group Similar Columns")
-    st.markdown(
-        """
-        Uses subword and word-level semantic representations (BERT-family principles)
-        to calculate semantic similarity between feature schemas and cluster collinear or redundant columns.
-        """
-    )
+    # 1. Column Embeddings and Grouping
+    st.subheader("1. Contextual BERT Embeddings to Group Similar Columns")
+    st.markdown("Compare contextual BERT embeddings with an offline lexical baseline.")
     sim_thresh = st.slider("Clustering Similarity Threshold:", min_value=0.2, max_value=0.8, value=0.35, step=0.05)
-    bert_grouping = group_similar_columns_bert(df, similarity_threshold=sim_thresh)
+    embedding_choice = st.selectbox(
+        "Column embedding method:",
+        ["Lightweight TF-IDF baseline", "BERT-tiny contextual embeddings"]
+    )
+    embedding_backend = "bert" if embedding_choice.startswith("BERT") else "tfidf"
+    try:
+        bert_grouping = group_similar_columns_bert(
+            df,
+            similarity_threshold=sim_thresh,
+            embedding_backend=embedding_backend
+        )
+    except Exception as err:
+        st.error(f"Unable to calculate column embeddings: {err}")
+        bert_grouping = None
 
-    if bert_grouping["figure"]:
-        st.plotly_chart(bert_grouping["figure"], width="stretch")
+    if bert_grouping and bert_grouping["figure"]:
+        st.plotly_chart(bert_grouping["figure"])
 
-    st.write(f"Total Column Semantic Clusters Identified: **{bert_grouping['total_clusters']}**")
-    for cl_id, cl_cols in bert_grouping["clusters"].items():
-        st.write(f"• **Cluster {cl_id + 1}:** {', '.join(cl_cols)}")
+    if bert_grouping:
+        st.caption(f"Embedding method: {bert_grouping['embedding_backend']}")
+        st.write(f"Total Column Clusters Identified: **{bert_grouping['total_clusters']}**")
+        for cl_id, cl_cols in bert_grouping["clusters"].items():
+            st.write(f"**Cluster {cl_id + 1}:** {', '.join(map(str, cl_cols))}")
 
-    if bert_grouping["redundancy_alerts"]:
+    if bert_grouping and bert_grouping["redundancy_alerts"]:
         st.subheader("Potential Feature Redundancy Alerts")
         for alert in bert_grouping["redundancy_alerts"]:
             st.warning(alert["note"])
@@ -522,6 +535,8 @@ with tabs[5]:
             story = generate_dataset_story(df, target_column)
             st.markdown(story["narrative"])
             st.caption(f"Generator Engine: {story['generator_type']}")
+            if story.get("api_error"):
+                st.warning(f"Gemini request failed; showing the local narrative instead: {story['api_error']}")
 
     st.divider()
 
@@ -555,7 +570,7 @@ with tabs[5]:
         st.markdown("#### Image Modality (Dataset Card Infographic)")
         st.markdown("Downloadable visual card summarizing dataset distributions.")
         img_bytes = generate_dataset_infographic_card(df, target_column, rec["task"])
-        st.image(img_bytes, caption="Dataset Infographic Card (PNG)", use_container_width=True)
+        st.image(img_bytes, caption="Dataset Infographic Card (PNG)")
         st.download_button(
             "Download Dataset Card (.png)",
             data=img_bytes,
@@ -563,15 +578,54 @@ with tabs[5]:
             mime="image/png"
         )
 
+    st.markdown("#### Chart Image Understanding")
+    st.caption(
+        "Optional Gemini vision analysis. The image is sent to Google only after you "
+        "select it and explicitly enable sharing below. Do not upload sensitive images."
+    )
+    chart_image = st.file_uploader(
+        "Choose a chart image",
+        type=["png", "jpg", "jpeg", "webp"],
+        key="chart_image_upload"
+    )
+    allow_image_sharing = False
+    if chart_image:
+        image_digest = hashlib.sha256(chart_image.getvalue()).hexdigest()
+        allow_image_sharing = st.checkbox(
+            "I agree to send this image to Gemini for analysis.",
+            key=f"chart_image_consent_{image_digest}"
+        )
+    chart_question = st.text_input(
+        "Optional question about the chart",
+        key="chart_image_question"
+    )
+    if st.button("Analyze Chart Image", key="analyze_chart_image_btn"):
+        if not chart_image:
+            st.error("Choose a chart image first.")
+        elif not allow_image_sharing:
+            st.error("Enable image sharing consent before requesting Gemini analysis.")
+        else:
+            try:
+                chart_analysis = analyze_chart_image(
+                    chart_image.getvalue(),
+                    chart_image.type,
+                    chart_question
+                )
+                st.write(chart_analysis)
+            except Exception as err:
+                st.error(f"Chart analysis failed: {err}")
+
 # =============================================================================
-# TAB 7: PYTORCH CTGAN SYNTHESIS (U4)
+# TAB 7: PYTORCH CONDITIONAL GAN SYNTHESIS (U4)
 # =============================================================================
 with tabs[6]:
-    st.header("PyTorch Tabular CTGAN Synthesis (Unit U4)")
+    st.header("PyTorch Conditional Tabular GAN ")
     st.markdown(
         """
-        Train a Generative Adversarial Network (GAN) implemented in PyTorch directly on your dataset.
-        Generates realistic synthetic rows preserving marginal distributions and correlation structures.
+        Train a lightweight conditional GAN with one-hot categorical columns. This CPU-friendly
+        educational implementation is CTGAN-inspired, but is not the canonical CTGAN algorithm:
+        it does not use mode-specific normalization or provide differential privacy. Synthetic
+        output can memorize small datasets and must not be treated as anonymized.
         """
     )
 
@@ -581,49 +635,58 @@ with tabs[6]:
     with t_col2:
         num_synthetic_rows = st.slider("Number of Synthetic Rows to Generate:", min_value=5, max_value=100, value=15, step=5)
 
-    if st.button("Train CTGAN & Generate Synthetic Data", key="train_ctgan_btn"):
+    if st.button("Train Conditional GAN & Generate Synthetic Data", key="train_ctgan_btn"):
         with st.spinner("Training PyTorch Generator & Discriminator networks..."):
             gan = TabularCTGAN(epochs=gan_epochs, batch_size=min(16, len(df)))
             gan.fit(df)
             synthetic_df = gan.sample(n_samples=num_synthetic_rows)
             st.session_state["synthetic_df"] = synthetic_df
-            st.success("PyTorch CTGAN trained and synthetic data generated successfully!")
+            st.success("Conditional GAN trained and synthetic data generated.")
 
     if "synthetic_df" in st.session_state:
         synth_data = st.session_state["synthetic_df"]
         st.subheader("Generated Synthetic Dataset")
-        st.dataframe(synth_data, width="stretch")
+        st.dataframe(synth_data)
 
         st.download_button(
             "Download Synthetic Dataset (.csv)",
-            data=synth_data.to_csv(index=False),
-            file_name="synthetic_dataset_ctgan.csv",
+            data=sanitize_spreadsheet_formulas(synth_data).to_csv(index=False),
+            file_name="synthetic_dataset_conditional_gan.csv",
             mime="text/csv"
         )
+        st.caption("Formula-like text values are escaped in the CSV download for spreadsheet safety.")
 
-        st.subheader("Statistical Fidelity Evaluation (Real vs Synthetic)")
+        st.subheader("Numeric Distribution Comparison (Real vs Synthetic)")
         eval_metrics = compare_real_and_synthetic(df, synth_data)
 
         score_col1, score_col2 = st.columns(2)
-        score_col1.metric("Synthetic Quality Score", f"{eval_metrics['aggregate_quality_score']}%")
-        score_col2.metric("Correlation Structure Match", f"{eval_metrics['correlation_similarity_score']}%")
+        score = eval_metrics["aggregate_quality_score"]
+        correlation_score = eval_metrics["correlation_similarity_score"]
+        score_col1.metric(
+            "Numeric Distribution Score",
+            f"{score}%" if score is not None else "Not available"
+        )
+        score_col2.metric(
+            "Correlation Structure Match",
+            f"{correlation_score}%" if correlation_score is not None else "Not available"
+        )
 
-        st.dataframe(eval_metrics["metrics_table"], width="stretch")
+        st.dataframe(eval_metrics["metrics_table"])
 
         if numerical_columns:
             inspect_col = st.selectbox("Inspect Feature Distribution Comparison:", numerical_columns, key="synth_comp_col")
             comp_fig = create_side_by_side_distribution(df, synth_data, inspect_col)
-            st.plotly_chart(comp_fig, width="stretch")
+            st.plotly_chart(comp_fig)
 
     st.divider()
     st.subheader("Cross-Modal Generative AI Curriculum Survey")
-    st.dataframe(pd.DataFrame(get_multimodal_genai_survey()), width="stretch")
+    st.dataframe(pd.DataFrame(get_multimodal_genai_survey()))
 
 # =============================================================================
 # TAB 8: RESPONSIBLE AI & MODEL CARD (U5)
 # =============================================================================
 with tabs[7]:
-    st.header("Responsible AI, Safety & Model Card (Unit U5)")
+    st.header("Responsible AI, Safety & Model Card")
 
     # 1. Sensitive Column Detection
     st.subheader("1. Sensitive-Column & PII Detection")
@@ -632,39 +695,84 @@ with tabs[7]:
         st.success("No high-risk PII or protected demographic attributes detected in column headers or content.")
     else:
         st.warning(f"Detected {sens_audit['total_sensitive_found']} sensitive feature(s).")
-        st.dataframe(pd.DataFrame(sens_audit["sensitive_columns"]), width="stretch")
+        st.dataframe(pd.DataFrame(sens_audit["sensitive_columns"]))
 
     st.divider()
 
     # 2. Class Imbalance Detection
     st.subheader("2. Class-Imbalance Detection")
-    if target_column:
+    if target_column and rec["task"].startswith("Classification"):
         imbalance_res = detect_class_imbalance(df, target_column)
         if imbalance_res:
             st.write(f"Imbalance Severity: **{imbalance_res['severity']}** (Ratio {imbalance_res['ratio']}:1)")
             st.write(f"Normalized Shannon Entropy: **{imbalance_res['normalized_entropy']}**")
-            st.dataframe(imbalance_res["distribution_table"], width="stretch")
+            st.dataframe(imbalance_res["distribution_table"])
             st.info(imbalance_res["recommendation"])
     else:
-        st.info("Select a target column in the sidebar to run class-imbalance detection.")
+        st.info("Select a classification target in the sidebar to run class-imbalance detection.")
 
     st.divider()
 
     # 3. Demographic Fairness & Disparate Impact
     st.subheader("3. Demographic Fairness & Disparate Impact Ratio")
-    if sens_audit["sensitive_columns"] and target_column:
-        first_sens = sens_audit["sensitive_columns"][0]["Column"]
-        fairness = evaluate_demographic_fairness(df, first_sens, target_column)
+    fairness_columns = [
+        item["Column"]
+        for item in sens_audit["sensitive_columns"]
+        if item["Classification"].startswith("Protected:")
+        if df[item["Column"]].nunique(dropna=True) > 1
+        and df[item["Column"]].nunique(dropna=True) <= 20
+        and (
+            not pd.api.types.is_numeric_dtype(df[item["Column"]])
+            or df[item["Column"]].nunique(dropna=True) == 2
+        )
+    ]
+    if fairness_columns and target_column:
+        fair_col1, fair_col2 = st.columns(2)
+        with fair_col1:
+            sensitive_group = st.selectbox("Sensitive group column:", fairness_columns)
+        outcome_values = df[target_column].dropna().unique()
+        binary_target = (
+            not pd.api.types.is_numeric_dtype(df[target_column])
+            or len(outcome_values) == 2
+        )
+        positive_label = None
+        if binary_target and len(outcome_values) > 0:
+            with fair_col2:
+                positive_label = st.selectbox(
+                    "Positive outcome:",
+                    list(outcome_values),
+                    format_func=str
+                )
+        fairness = evaluate_demographic_fairness(
+            df,
+            sensitive_group,
+            target_column,
+            positive_label=positive_label
+        )
         if fairness:
-            st.write(f"Evaluated Sensitive Group: **{first_sens}** on Outcome **{target_column}**")
+            st.write(f"Evaluated **{sensitive_group}** across outcome **{target_column}**")
+            st.caption(
+                f"Positive outcome: {fairness['positive_label']}"
+                if fairness["positive_label"] is not None
+                else "Outcome rate is the mean of the non-negative numeric target."
+            )
             st.metric("Disparate Impact Ratio (DIR)", fairness["disparate_impact_ratio"])
             if fairness["violates_80_rule"]:
-                st.error(f"Status: {fairness['status']}")
+                st.warning(f"Potential disparity: {fairness['status']}")
             else:
-                st.success(f"Status: {fairness['status']}")
+                st.info(f"Screening result: {fairness['status']}")
             st.write(fairness["recommendation"])
+            st.caption(
+                "This is a coarse screening metric, not a legal compliance determination; "
+                "group selection, sample size, uncertainty, and context matter."
+            )
+        else:
+            st.info(
+                "Choose a binary outcome (or provide an explicit positive label) and "
+                "a sensitive group with at least two observed values."
+            )
     else:
-        st.caption("Requires a detected sensitive column and a designated target to calculate demographic fairness.")
+        st.caption("Requires a detected categorical/binary sensitive column and a designated target.")
 
     st.divider()
 
@@ -678,7 +786,11 @@ with tabs[7]:
     if st.button("Audit Grounding & Hallucination Risk", key="hallucination_btn"):
         h_eval = verify_hallucination(test_ai_text, df)
         h_col1, h_col2 = st.columns(2)
-        h_col1.metric("Grounding Score", f"{h_eval['grounding_score']}%")
+        grounding_score = h_eval["grounding_score"]
+        h_col1.metric(
+            "Grounding Score",
+            f"{grounding_score}%" if grounding_score is not None else "Not assessed"
+        )
         h_col2.metric("Hallucination Risk Level", h_eval["hallucination_risk"])
         st.write(h_eval["details"])
 
@@ -693,10 +805,13 @@ with tabs[7]:
             "CC-BY 4.0",
             "MIT License",
             "Open Data Commons (ODC-By)",
-            "CC-BY-NC 4.0 (Non-Commercial)"
+            "CC-BY-NC 4.0 (Non-Commercial)",
+            "Unknown / unlisted"
         ]
     )
-    lic_info = audit_dataset_license(lic_choice)
+    lic_info = audit_dataset_license(
+        "Unknown / unlisted" if lic_choice == "Unknown / unlisted" else lic_choice
+    )
     st.write(f"**Commercial AI Training Allowed:** {'Yes' if lic_info['commercial_use'] else 'No'}")
     st.write(f"**Attribution Required:** {'Yes' if lic_info['attribution_required'] else 'No'}")
     st.info(lic_info["guidance"])

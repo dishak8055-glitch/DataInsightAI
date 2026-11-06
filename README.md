@@ -4,7 +4,7 @@ emoji: 📊
 colorFrom: blue
 colorTo: indigo
 sdk: streamlit
-sdk_version: 1.35.0
+python_version: "3.11"
 app_file: app.py
 pinned: false
 license: mit
@@ -12,7 +12,7 @@ license: mit
 
 # DataInsight AI – CSV Dataset Insight & Task Recommender (P10)
 
-DataInsight AI is an advanced Generative AI and automated dataset intelligence system built for tabular CSV data. It bridges deterministic pandas statistical profiling with modern GenAI architectures: transformer natural-language querying, PyTorch Tabular CTGAN synthesis, BERT-family column semantic embeddings, multimodal audio/visual generation, and Responsible AI compliance audits.
+DataInsight AI is a Streamlit CSV analysis and Generative AI learning application. It combines deterministic pandas profiling and querying with an opt-in Gemini assistant, a selectable BERT-tiny column embedding mode, a lightweight conditional GAN, image/audio utilities, and responsible-AI screening.
 
 ---
 
@@ -37,12 +37,13 @@ graph TD
     J --> J3["LoRA PEFT Calculator & Attention Visualizer"]
     
     A --> K["U3: BERT & Multimodal Studio"]
-    K --> K1["BERT-Family Column Semantic Clustering"]
+    K --> K1["BERT-tiny or TF-IDF Column Clustering"]
     K --> K2["GPT Narrative Insight Generator"]
     K --> K3["Audio Narration (pyttsx3) & Dataset Cards"]
+    K --> K4["Opt-in Gemini Chart Image Analysis"]
     
-    A --> L["U4: PyTorch CTGAN Synthesis"]
-    L --> L1["Tabular Generator & Discriminator Networks"]
+    A --> L["U4: PyTorch Conditional GAN Synthesis"]
+    L --> L1["One-hot Categories & Conditional Generator"]
     L --> L2["Kolmogorov-Smirnov & Correlation Validation"]
     
     A --> M["U5: Responsible AI & Model Card"]
@@ -62,38 +63,34 @@ graph TD
 | | Learning-type identification & lifecycle | `modules/gen_vs_disc.py` (Supervised, Unsupervised, Self-Supervised, Generative) |
 | | Generative vs Discriminative learning | `modules/gen_vs_disc.py` ($P(Y \mid X)$ vs $P(X, Y)$ mathematical comparison) |
 | | Prompt engineering & latent-space sampling | `modules/prompt_engineering.py` (Zero-shot, Few-shot, CoT, Role, Schema, Temperature/Top-p) |
-| **U2 – GANs and LLMs** | Transformer-based LLM | `modules/csv_chat.py` (Google Gemini 3.8 Flash integration) |
+| **U2 – GANs and LLMs** | Transformer-based LLM | `modules/csv_chat.py` (Gemini 3.8 Flash, optional API key) |
 | | Natural-language CSV analysis using pandas | `modules/csv_chat.py` (Fast-Path Pandas + Structured JSON Execution) |
 | | Fine-tuning vs prompt-based learning | `modules/finetune_vs_prompt.py` (Radar trade-offs + LoRA parameter calculator) |
 | | GAN/VAE or attention explanation | `modules/attention_explainer.py` (Interactive attention weights + Minimax/ELBO comparison) |
 | **U3 – GPT, BERT & Multimodal** | GPT-style generator | `modules/gpt_generator.py` (Autoregressive narrative storytelling) |
-| | BERT-family embeddings to group columns | `modules/column_embeddings.py` (Subword TF-IDF + Cosine similarity clustering) |
-| | Image or audio modality | `modules/multimodal.py` (pyttsx3 spoken speech + PIL Dataset Infographic Card) |
-| **U4 – Tools & Generation** | Python with PyTorch | `modules/synthetic_data.py` (PyTorch 2.10.0 neural networks) |
-| | CTGAN synthetic tabular data generation | `modules/synthetic_data.py` (Tabular Generator & Discriminator training) |
-| | Compare real and synthetic datasets | `modules/synthetic_data.py` (Two-sample KS-test, correlation matrix Frobenius norm) |
-| | Address image/video/music generation | `modules/multimodal.py` (Cross-modal survey: Diffusion, Sora, MusicLM) |
+| | BERT-family embeddings to group columns | `modules/column_embeddings.py` (BERT-tiny contextual embeddings; lexical TF-IDF offline baseline) |
+| | Image/chart understanding | `modules/multimodal.py` (consent-gated Gemini chart-image analysis) |
+| | Image and audio output | `modules/multimodal.py` (dataset infographic and local text-to-speech) |
+| **U4 – Tools & Generation** | Python with PyTorch | `modules/synthetic_data.py` (PyTorch neural networks) |
+| | Conditional tabular synthetic data generation | `modules/synthetic_data.py` (lightweight PyTorch conditional GAN; CTGAN-inspired, not canonical CTGAN) |
+| | Compare real and synthetic datasets | `modules/synthetic_data.py` (numeric KS tests and correlation comparison; unavailable metrics are not fabricated) |
+| | Address image/video/music generation | `modules/multimodal.py` (image/audio features plus conceptual video/music survey; no video or music generator) |
 | **U5 – Responsible AI** | Sensitive-column & PII detection | `modules/responsible_ai.py` (Regex PII detection + Protected attribute audit) |
 | | Class-imbalance detection | `modules/responsible_ai.py` (Shannon entropy, ratio metrics, SMOTE recommendations) |
-| | Bias & hallucination evaluation | `modules/responsible_ai.py` (Disparate Impact 80% rule + Pandas factuality check) |
+| | Bias & hallucination evaluation | `modules/responsible_ai.py` (selectable positive-outcome fairness screening + heuristic numeric grounding) |
 | | Safety guardrails | `modules/csv_chat.py` (Zero unrestricted `eval()`/`exec()`, strict operation whitelist) |
 | | Licence/IP considerations | `modules/responsible_ai.py` (CC0, CC-BY, MIT, ODC-By, CC-BY-NC guidance) |
 | | Model card | `MODEL_CARD.md` & `modules/responsible_ai.py` (Mitchell et al. 2019 standard) |
 
 ---
 
-## Chat Performance Optimization
+## Chat Execution and Guardrails
 
-### Investigation Findings
-1. **Double API Call Bottleneck:** The previous chat implementation invoked Gemini twice per question (once for JSON plan interpretation, and a second time to explain the pandas output). Each round-trip introduced 1.5 - 3.0 seconds of network latency.
-2. **Missing Local Fast-Path:** Standard statistical questions (e.g. "average Age", "how many rows", "highest salary") were unnecessarily sent over the network to the LLM despite being deterministically resolvable locally in microseconds.
-3. **Aggressive Retry Delays:** The API client configured 3 retry attempts with a 2-second initial delay and exponential base 2, blocking the UI thread for 15+ seconds during network drops.
-
-### Solutions Implemented
-- **Fast-Path Semantic Parser:** Matches column names using word-boundary regular expressions (`\bcol\b` preventing subword false-positives like 'Age' inside 'average') and resolves common statistical intents instantly (< 10 ms).
-- **Single-Call Strategy:** When complex natural language requires Gemini, only a single structured call is made, executing the plan via pandas and generating clean explanations locally.
-- **Resilient Fallback & Fast Retries:** Client caching and tight 1.0s retries ensure the Streamlit UI never freezes.
-- **Clean Interface:** Removed cluttered technical JSON dumps from the default user view, providing an optional collapsed inspection expander for viva evaluation.
+- **Local fast path:** Clear row-count, aggregation, distribution, grouped-aggregation, and correlation questions are answered with pandas without an API call.
+- **Complex queries:** If configured, Gemini receives the question and column metadata and returns a restricted JSON operation plan; pandas executes only operations on the explicit whitelist.
+- **No generated code execution:** The app does not execute LLM-produced Python. Unsupported or failed requests are reported instead of being replaced with a fabricated count.
+- **API use:** A cached Gemini client uses bounded retries. Actual latency depends on the network, provider quota, and selected dataset; no fixed latency is guaranteed.
+- **Inspection:** Optional chat metadata shows the selected operation and the pandas expression used.
 
 ---
 
@@ -103,6 +100,7 @@ graph TD
 - Windows 11, macOS, or Linux
 - Python 3.11
 - 16 GB RAM (runs on CPU / integrated graphics)
+- CSV uploads are limited to 50 MB by default for resource safety.
 
 ### Step 1: Clone Repository & Setup Virtual Environment
 ```bash
@@ -126,6 +124,7 @@ Create a `.env` file in the root folder:
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 *(You can obtain a free API key from [Google AI Studio](https://aistudio.google.com/)).*
+The key is optional for local profiling, the lexical column baseline, and local dataset analysis. Gemini-backed question planning, narrative output, and chart-image understanding need a key. Chart-image analysis requires a separate explicit consent for each selected image.
 
 ### Step 4: Run the Application
 ```bash
@@ -136,7 +135,7 @@ streamlit run app.py
 ```bash
 python -m pytest tests/
 ```
-*(All 50 unit tests will run and pass).*
+The test command reports the current result for the checked-out environment.
 
 ---
 
@@ -144,11 +143,11 @@ python -m pytest tests/
 
 1. Create a new Space on [Hugging Face Spaces](https://huggingface.co/spaces).
 2. Choose **Streamlit** as the SDK.
-3. Push your repository files (`app.py`, `modules/`, `requirements.txt`, `sample_*.csv`, `MODEL_CARD.md`).
+3. Push your repository files (`app.py`, `modules/`, `requirements.txt`, `packages.txt`, `sample_*.csv`, `MODEL_CARD.md`).
 4. In the Space settings, add your **Repository Secret**:
    - Variable name: `GEMINI_API_KEY`
    - Value: `your_gemini_api_key_here`
-5. The application will build and launch publicly with free CPU tier hosting.
+5. The application can run on a CPU Space. Gemini is optional; add `GEMINI_API_KEY` as a Space secret to enable Gemini chat, narrative generation, and consent-gated chart analysis. BERT-tiny weights are downloaded from Hugging Face when that embedding mode is selected. Video and music generation are not included; their architectures are covered in the curriculum survey.
 
 ---
 
@@ -158,8 +157,8 @@ python -m pytest tests/
 - **Discriminative models** estimate the conditional probability $P(Y \mid X)$ directly. They learn the decision boundary separating classes (e.g. Logistic Regression, Random Forest, SVM) or predict continuous targets (Linear Regression).
 - **Generative models** estimate the joint distribution $P(X, Y) = P(X \mid Y)P(Y)$ or data distribution $P(X)$. They model how the data was generated and can synthesize novel samples (e.g. Naive Bayes, CTGAN, VAEs, Diffusion).
 
-### 2. How does CTGAN generate synthetic tabular data?
-Tabular data presents mixed continuous columns with multimodal distributions and discrete categorical columns. CTGAN employs **Mode-Specific Normalization** (using a Variational Gaussian Mixture Model) to transform continuous features, and one-hot encodings for categories. A Generator network transforms random noise $z \sim \mathcal{N}(0, I)$ into synthetic rows, while a Discriminator network trained via Wasserstein loss penalizes deviations from real row distributions.
+### 2. How does this project generate synthetic tabular data?
+The project implements a compact conditional GAN demonstration with one-hot categorical features and category-conditioning vectors. It is **CTGAN-inspired, not the canonical CTGAN**: it does not implement mode-specific normalization or the complete CTGAN training objective. It is intended for coursework, not privacy-preserving release. No differential privacy guarantee is provided.
 
 ### 3. What is Low-Rank Adaptation (LoRA) and how does it reduce memory?
 Instead of updating all weights $W_0 \in \mathbb{R}^{d \times k}$, LoRA freezes $W_0$ and injects trainable rank-decomposition matrices: $\Delta W = \frac{\alpha}{r} (B \cdot A)$ where $A \in \mathbb{R}^{r \times k}$ and $B \in \mathbb{R}^{d \times r}$ with rank $r \ll \min(d, k)$. For a 7B parameter LLM with rank $r=16$, LoRA trains less than 0.1% of weights, cutting GPU memory requirements by over 70%.
@@ -172,15 +171,15 @@ Queries ($Q$) and Keys ($K$) measure pairwise compatibility scores. Dividing by 
 - **Sensitive Feature Detection:** Identifies PII (email, phone, national IDs) and protected classes (gender, age, race).
 - **Class Imbalance Mitigation:** Computes Shannon entropy and majority-to-minority ratios, guiding the user toward SMOTE, class-weighted loss, or focal loss.
 - **Demographic Fairness:** Evaluates Disparate Impact Ratio (DIR) across sensitive demographic slices using the EEOC 80% (4/5ths) rule.
-- **Hallucination Auditing:** Verifies that AI claims are grounded in deterministic pandas facts.
+- **Hallucination Auditing:** A heuristic compares extracted numeric claims against sample values and statistics; it can miss errors and is not a factuality guarantee.
 - **Standardized Model Card:** Exports a complete Mitchell et al. (2019) compliance document.
 
 ---
 
 ## Deliverables & Artifacts Included
 - `app.py`: Streamlit application with tabbed interface.
-- `modules/`: 9 modular engines covering profiling, visualization, recommender, chat, GenAI, BERT, CTGAN, and Responsible AI.
-- `tests/`: 11 test suites comprising 50 unit tests (100% passing).
+- `modules/`: reusable modules for profiling, visualization, recommender, chat, GenAI, embeddings, synthesis, multimodal features, and Responsible AI.
+- `tests/`: focused test suites for application modules; run them locally to see the current result.
 - `MODEL_CARD.md`: Mitchell et al. compliant documentation.
 - `REPORTS.md`: Experimental benchmark reports on 3 public datasets with failure case analysis.
 - `DEMO_SCRIPT.md`: Timed 2-3 minute demonstration video script.

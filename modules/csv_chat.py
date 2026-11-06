@@ -64,6 +64,7 @@ def get_gemini_client():
     _cached_gemini_client = genai.Client(
         api_key=api_key,
         http_options=types.HttpOptions(
+            timeout=10_000,
             retry_options=retry_options
         )
     )
@@ -566,18 +567,16 @@ def answer_question(df, question, use_fast_path=True, explain_with_llm=False):
         else:
             explanation = generate_local_explanation(question, plan, execution)
 
-    except Exception:
+    except Exception as llm_error:
         # Step 3: Resilient fallback
         used_fallback = True
         source = "local_fallback"
         plan = fast_local_plan(df, question)
         if not plan:
-            # Last-ditch column match
-            matched_cols = find_matching_columns(df, question)
-            if matched_cols:
-                plan = {"operation": "value_counts", "column": matched_cols[0], "group_column": None, "second_column": None}
-            else:
-                plan = {"operation": "count_rows", "column": None, "group_column": None, "second_column": None}
+            raise RuntimeError(
+                "The question could not be resolved locally and Gemini did not return "
+                "a usable analysis plan. Try naming a column and supported statistic."
+            ) from llm_error
 
         execution = execute_plan(df, plan)
         explanation = generate_local_explanation(question, plan, execution)

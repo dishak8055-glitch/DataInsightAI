@@ -50,6 +50,69 @@ def test_evaluate_demographic_fairness():
     assert fairness["disparate_impact_ratio"] < 0.80
 
 
+def test_fairness_requires_explicit_positive_label_for_string_outcomes():
+    df = pd.DataFrame({
+        "Group": ["A", "A", "B", "B"],
+        "Outcome": ["Approved", "Denied", "Denied", "Denied"]
+    })
+    assert evaluate_demographic_fairness(df, "Group", "Outcome") is None
+
+    fairness = evaluate_demographic_fairness(
+        df, "Group", "Outcome", positive_label="Approved"
+    )
+    assert fairness is not None
+    assert fairness["positive_label"] == "Approved"
+    assert fairness["disparate_impact_ratio"] == 0.0
+    assert fairness["violates_80_rule"] is True
+
+
+def test_fairness_does_not_infer_when_all_numeric_outcomes_are_zero():
+    df = pd.DataFrame({
+        "Group": ["A", "A", "B", "B"],
+        "Outcome": [0, 0, 0, 0]
+    })
+    assert evaluate_demographic_fairness(df, "Group", "Outcome") is None
+
+
+def test_fairness_supports_explicit_positive_class_for_integer_labels():
+    df = pd.DataFrame({
+        "Group": ["A", "A", "B", "B"],
+        "Outcome": [0, 2, 2, 2]
+    })
+    fairness = evaluate_demographic_fairness(
+        df, "Group", "Outcome", positive_label=2
+    )
+    assert fairness is not None
+    assert fairness["group_rates"] == {"A": 0.5, "B": 1.0}
+
+
+def test_fairness_handles_target_as_sensitive_column():
+    df = pd.DataFrame({
+        "Gender": ["Male", "Female", "Male", "Female"],
+        "Other": [1, 0, 1, 0]
+    })
+
+    assert evaluate_demographic_fairness(df, "Gender", "Gender") is None
+
+
+def test_fairness_drops_missing_pairs_and_ignores_undersized_groups():
+    df = pd.DataFrame({
+        "Group": ["A", "A", "A", "B", "B", "C", "C"],
+        "Outcome": [1, 0, None, 1, 1, 0, None]
+    })
+
+    fairness = evaluate_demographic_fairness(df, "Group", "Outcome")
+
+    assert fairness is not None
+    assert fairness["group_rates"] == {"A": 0.5, "B": 1.0}
+
+    insufficient = pd.DataFrame({
+        "Group": ["A", "A", "B", "C"],
+        "Outcome": [1, 0, 1, 0]
+    })
+    assert evaluate_demographic_fairness(insufficient, "Group", "Outcome") is None
+
+
 def test_verify_hallucination():
     df = pd.DataFrame({
         "Age": [20, 30, 40],
@@ -67,12 +130,19 @@ def test_verify_hallucination():
     assert res2["grounding_score"] < 50.0
     assert res2["hallucination_risk"] == "High"
 
+    no_claims = verify_hallucination("The chart trends upward.", df)
+    assert no_claims["grounding_score"] is None
+    assert no_claims["hallucination_risk"] == "Not assessed"
+
 
 def test_audit_dataset_license():
     lic = audit_dataset_license("CC-BY 4.0")
     assert lic["commercial_use"] is True
     assert lic["attribution_required"] is True
     assert lic["ai_training_safe"] is True
+    unknown = audit_dataset_license("Unlisted license")
+    assert unknown["commercial_use"] is False
+    assert unknown["ai_training_safe"] is False
 
 
 def test_generate_model_card():
