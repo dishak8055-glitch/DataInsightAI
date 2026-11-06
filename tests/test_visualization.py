@@ -16,6 +16,24 @@ def test_histogram():
     fig = create_histogram(df, "Age")
 
     assert fig is not None
+    assert fig.data[0].type == "histogram"
+    assert list(fig.data[0].x) == [20, 25, 30]
+
+
+def test_histogram_sample_housing_dataset():
+    df = pd.read_csv("sample_housing.csv")
+
+    fig = create_histogram(df, "PriceUSD")
+
+    assert fig is not None
+    assert fig.data[0].type == "histogram"
+    assert len(fig.data[0].x) == len(df)
+
+
+def test_histogram_returns_none_for_all_missing_values():
+    df = pd.DataFrame({"Value": [None, float("nan")]})
+
+    assert create_histogram(df, "Value") is None
 
 
 def test_boxplot():
