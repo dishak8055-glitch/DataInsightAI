@@ -232,23 +232,50 @@ The test command reports the current result for the checked-out environment.
 
 ---
 
-## Deployment to Hugging Face Spaces
+## Streamlit Community Cloud Deployment
 
-1. Create a new Space on [Hugging Face Spaces](https://huggingface.co/spaces).
-2. Choose **Streamlit** as the SDK.
-3. Push your repository files (`app.py`, `modules/`, `requirements.txt`, `packages.txt`, `datasets/`, `sample_*.csv`, `MODEL_CARD.md`).
-4. In the Space settings, add your **Repository Secret**:
-   - Variable name: `GROQ_API_KEY`
-   - Value: your Groq API key
-5. Local dependency and application checks have been run, but no Streamlit
-Community Cloud or Hugging Face Spaces deployment has been verified. Both
-platforms build from the root `requirements.txt`; the SDV/PyTorch dependency
-set may increase build time and memory use. `packages.txt` requests `espeak`
-for Linux text-to-speech and should be confirmed in the target build. Groq is
-optional; add `GROQ_API_KEY` as a platform secret to enable Groq-backed
-features. BERT-tiny weights are downloaded when that mode is selected. Video
-and music generation are not included. Resolve the SDV BSL public-service
-restriction before enabling public SDV synthesis.
+DataInsight AI is deployed on Streamlit Community Cloud. The deployment is
+connected to this project's GitHub repository and the `main` branch. When that
+connection is configured, new commits to `main` trigger an automatic
+redeployment. This describes the deployment setup; it does not assert that a
+particular deployment or build was independently verified.
+
+To configure or redeploy the app:
+
+1. Open [Streamlit Community Cloud](https://share.streamlit.io/).
+2. Connect the GitHub account and select this repository.
+3. Select the `main` branch and set `app.py` as the app entry point.
+4. Open **App Settings → Secrets** and add the Groq secret:
+   ```toml
+   GROQ_API_KEY = "your_groq_api_key_here"
+   ```
+5. Save the settings and deploy. Community Cloud installs Python
+   dependencies from the repository's root `requirements.txt` during the
+   build.
+
+Never commit API keys to GitHub. Store them only in Streamlit secrets (or a
+local, untracked `.env` file for development).
+
+### Troubleshooting deployment
+
+- **Build fails:** Open the app's deployment logs in Community Cloud and check
+  the first dependency or build error. Confirm that `requirements.txt` is
+  present at the repository root, dependency versions are compatible with
+  Python 3.11, and the selected branch contains the required app and module
+  files. After correcting the cause, push a new commit or restart the app to
+  trigger another build.
+- **Groq features report a missing key:** In **App Settings → Secrets**, check
+  that `GROQ_API_KEY` is spelled exactly as shown, uses valid TOML syntax, and
+  has a non-empty value. Save the secret and restart/redeploy the app. Do not
+  put the key in source files or commit it to GitHub.
+
+The SDV/PyTorch dependency set may increase build time and memory use.
+`packages.txt` requests `espeak` for Linux text-to-speech; confirm that this
+system package is available in the target deployment environment. Groq is
+optional; add `GROQ_API_KEY` to enable Groq-backed features. BERT-tiny weights
+are downloaded when that mode is selected. Video and music generation are
+not included. Resolve the SDV BSL public-service restriction before enabling
+public SDV synthesis.
 
 ---
 
