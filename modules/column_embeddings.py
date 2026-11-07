@@ -83,6 +83,19 @@ def group_similar_columns_bert(
     Groups columns using contextual BERT embeddings or a lightweight TF-IDF baseline.
     BERT weights are downloaded from Hugging Face on first use and cached locally.
     """
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("Column grouping requires a pandas DataFrame.")
+    if df.columns.has_duplicates:
+        raise ValueError("Column grouping requires unique column names.")
+    if (
+        not isinstance(similarity_threshold, (int, float))
+        or isinstance(similarity_threshold, bool)
+        or not 0.0 <= similarity_threshold <= 1.0
+    ):
+        raise ValueError("similarity_threshold must be between 0 and 1.")
+    if embedding_backend not in {"bert", "tfidf"}:
+        raise ValueError("embedding_backend must be either 'bert' or 'tfidf'.")
+
     columns = list(df.columns)
     if len(columns) < 2:
         return {
@@ -111,9 +124,6 @@ def group_similar_columns_bert(
         tfidf_matrix = vectorizer.fit_transform(contexts)
         sim_matrix = cosine_similarity(tfidf_matrix)
         backend_label = "Character n-gram TF-IDF baseline (not a BERT model)"
-    else:
-        raise ValueError("embedding_backend must be either 'bert' or 'tfidf'.")
-
     sim_matrix = np.clip(sim_matrix, 0.0, 1.0)
     np.fill_diagonal(sim_matrix, 1.0)
 

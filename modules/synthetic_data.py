@@ -1,6 +1,8 @@
 # modules/synthetic_data.py
 
+import os
 import re
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -10,6 +12,13 @@ import torch.optim as optim
 from scipy.stats import ks_2samp
 import plotly.express as px
 import plotly.graph_objects as go
+
+
+def is_sdv_backend_enabled():
+    """Require explicit opt-in before exposing SDV synthesis in the app."""
+    return os.getenv("DATAINSIGHT_ENABLE_SDV", "").strip().lower() in {
+        "1", "true", "yes"
+    }
 
 
 def is_identifier_column(column):
@@ -41,6 +50,139 @@ def sanitize_spreadsheet_formulas(df):
                 )
             )
     return sanitized
+
+
+def _get_sdv_ctgan_components():
+    try:
+        from sdv.metadata import Metadata
+        from sdv.single_table import CTGANSynthesizer
+    except ImportError as exc:
+        raise ImportError(
+            "SDV is required for the SDV CTGAN backend. Install the project requirements."
+        ) from exc
+    return Metadata, CTGANSynthesizer
+
+
+class SDVCTGANSynthesizer:
+    """Wrapper around SDV's actual CTGANSynthesizer with explicit validation."""
+
+    def __init__(self, epochs=50, batch_size=100, pac=10):
+        if not isinstance(epochs, int) or epochs < 1:
+            raise ValueError("Training epochs must be a positive integer.")
+        if not isinstance(pac, int) or pac < 1:
+            raise ValueError("pac must be a positive integer.")
+        if not isinstance(batch_size, int) or batch_size < 1 or batch_size % pac:
+            raise ValueError("Batch size must be a positive multiple of pac.")
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.pac = pac
+        self.synthesizer = None
+        self.columns = None
+        self.is_fitted = False
+
+    def fit(self, df):
+        """Fit SDV CTGAN without dropping rows or columns from the training data."""
+        self.is_fitted = False
+        if not isinstance(df, pd.DataFrame) or df.empty or len(df.columns) == 0:
+            raise ValueError(
+                "SDV CTGAN training requires at least one row and one column."
+            )
+        if len(df) < 2:
+            raise ValueError("SDV CTGAN training requires at least two rows.")
+        if df.columns.has_duplicates:
+            raise ValueError("SDV CTGAN requires unique column names.")
+        if df.isna().all(axis=0).any():
+            raise ValueError(
+                "SDV CTGAN cannot infer columns that contain only missing values. "
+                "Resolve those columns explicitly before training."
+            )
+
+        training_data = df.copy(deep=True)
+        numeric_columns = training_data.select_dtypes(include=[np.number]).columns
+        for column in numeric_columns:
+            training_data[column] = training_data[column].replace(
+                [np.inf, -np.inf], np.nan
+            )
+
+        try:
+            Metadata, CTGANSynthesizer = _get_sdv_ctgan_components()
+            metadata = Metadata.detect_from_dataframe(
+                training_data,
+                table_name="dataset"
+            )
+            table_columns = metadata.to_dict()["tables"]["dataset"]["columns"]
+            for column in training_data.columns:
+                dtype = training_data[column].dtype
+                if (
+                    pd.api.types.is_object_dtype(dtype)
+                    or pd.api.types.is_string_dtype(dtype)
+                    or isinstance(dtype, pd.CategoricalDtype)
+                    or pd.api.types.is_bool_dtype(dtype)
+                ) and table_columns[column]["sdtype"] != "id":
+                    metadata.update_column(
+                        column,
+                        table_name="dataset",
+                        sdtype="categorical"
+                    )
+
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message="We strongly recommend saving the metadata"
+                )
+                warnings.filterwarnings(
+                    "ignore",
+                    message=".*cuda.*deprecated.*",
+                    category=FutureWarning
+                )
+                self.synthesizer = CTGANSynthesizer(
+                    metadata,
+                    epochs=self.epochs,
+                    batch_size=self.batch_size,
+                    pac=self.pac,
+                    cuda=False,
+                    verbose=False,
+                    enforce_min_max_values=True,
+                    enforce_rounding=True
+                )
+                self.synthesizer.fit(training_data)
+        except ImportError as exc:
+            self.synthesizer = None
+            raise RuntimeError(str(exc)) from exc
+        except Exception:
+            self.synthesizer = None
+            raise RuntimeError(
+                "SDV CTGAN training failed. Check the input schema and values; "
+                "no alternate backend was used."
+            ) from None
+
+        self.columns = list(df.columns)
+        self.is_fitted = True
+        return self
+
+    def sample(self, n_samples=20):
+        """Generate rows with the original input schema using SDV CTGAN."""
+        if not self.is_fitted or self.synthesizer is None:
+            raise RuntimeError("SDV CTGAN must be fitted before sampling.")
+        if not isinstance(n_samples, int) or n_samples < 1:
+            raise ValueError("Number of synthetic rows must be a positive integer.")
+
+        try:
+            synthetic = self.synthesizer.sample(num_rows=n_samples)
+        except Exception:
+            raise RuntimeError(
+                "SDV CTGAN sampling failed; no alternate backend was used."
+            ) from None
+
+        if synthetic.columns.tolist() != self.columns:
+            raise RuntimeError(
+                "SDV CTGAN returned an output schema that differs from the training data."
+            )
+        if len(synthetic) != n_samples:
+            raise RuntimeError(
+                "SDV CTGAN returned a different number of rows than requested."
+            )
+        return synthetic
 
 
 class TabularGenerator(nn.Module):

@@ -11,6 +11,8 @@ __pycache__/
 
 # Sensitive environment variables
 .env
+.env.*
+!.env.example
 
 # OS temporary files
 Thumbs.db

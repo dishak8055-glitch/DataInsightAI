@@ -35,3 +35,17 @@ def test_column_detection():
     assert "CustomerID" in result["identifiers"]
     assert "Age" in result["numerical"]
     assert "Gender" in result["categorical"]
+
+
+def test_identifier_detection_uses_name_tokens_not_substrings():
+    df = pd.DataFrame({
+        "CustomerID": [1, 2],
+        "user_id": [3, 4],
+        "IDNumber": [5, 6],
+        "citric acid": [0.1, 0.2],
+    })
+
+    result = identify_column_types(df)
+
+    assert result["identifiers"] == ["CustomerID", "user_id", "IDNumber"]
+    assert result["numerical"] == ["citric acid"]

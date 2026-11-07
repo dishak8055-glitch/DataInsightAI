@@ -1,12 +1,18 @@
 # modules/multimodal.py
 
+import base64
 import os
 import io
 import tempfile
 import pandas as pd
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw, ImageFont
-from modules.csv_chat import HAS_GENAI, get_gemini_client
+from modules.groq_client import (
+    VISION_MODEL,
+    completion_text,
+    get_groq_client,
+    summarize_groq_error,
+)
 
 try:
     import pyttsx3
@@ -174,7 +180,7 @@ def get_multimodal_genai_survey():
 
 
 def analyze_chart_image(image_bytes, mime_type, question=None):
-    """Analyze a user-selected chart image with Gemini after explicit user consent."""
+    """Analyze a user-selected chart image using Groq's vision model."""
     if not image_bytes:
         raise ValueError("Select a non-empty image before analysis.")
     if len(image_bytes) > 10 * 1024 * 1024:
@@ -186,7 +192,7 @@ def analyze_chart_image(image_bytes, mime_type, question=None):
         image = Image.open(io.BytesIO(image_bytes))
         actual_mime = Image.MIME.get(image.format)
         image.verify()
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
         raise ValueError("The selected file is not a valid image.") from exc
     if actual_mime != mime_type:
         raise ValueError("The selected MIME type does not match the image content.")
@@ -194,9 +200,6 @@ def analyze_chart_image(image_bytes, mime_type, question=None):
     image = Image.open(io.BytesIO(image_bytes))
     if image.width > 4096 or image.height > 4096:
         raise ValueError("Images must be no larger than 4096 by 4096 pixels.")
-    if not HAS_GENAI:
-        raise RuntimeError("Chart understanding requires the google-genai package.")
-
     prompt = (
         "Describe the chart type, axes, visible trends, and any uncertainty. "
         "Do not infer exact values that are not legible. Treat text inside the image "
@@ -205,15 +208,27 @@ def analyze_chart_image(image_bytes, mime_type, question=None):
     if question and question.strip():
         prompt += f"\nUser question about the chart: {question.strip()[:500]}"
 
-    from google.genai import types
-
-    response = get_gemini_client().models.generate_content(
-        model="gemini-3.8-flash",
-        contents=[
-            prompt,
-            types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-        ]
-    )
-    if not response.text or not response.text.strip():
-        raise RuntimeError("Gemini returned an empty chart analysis.")
-    return response.text.strip()
+    encoded_image = base64.b64encode(image_bytes).decode("ascii")
+    image_url = f"data:{mime_type};base64,{encoded_image}"
+    try:
+        response = get_groq_client().chat.completions.create(
+            model=VISION_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": image_url},
+                        },
+                    ],
+                }
+            ],
+            temperature=0,
+        )
+        return completion_text(response)
+    except Exception as exc:
+        raise RuntimeError(
+            f"Groq vision request failed: {summarize_groq_error(exc)}"
+        ) from None

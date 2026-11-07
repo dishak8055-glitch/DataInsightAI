@@ -1,23 +1,20 @@
 # modules/gpt_generator.py
 
-import os
 import json
-from dotenv import load_dotenv
-
-load_dotenv()
-
-try:
-    from google import genai
-    HAS_GENAI = True
-except ImportError:
-    HAS_GENAI = False
+from modules.groq_client import (
+    TEXT_MODEL,
+    completion_text,
+    get_groq_api_key,
+    get_groq_client,
+    summarize_groq_error,
+)
 
 
 def generate_dataset_story(df, target_column=None, focus_mode="Executive Summary", use_api=True):
     """
     GPT-style autoregressive narrative generator.
     Produces comprehensive, viva-ready analytical reports and data stories.
-    Uses Gemini when API key is configured and use_api=True, with an offline structured generator fallback.
+    Uses Groq when an API key is configured and use_api=True, with an offline structured fallback.
     """
     total_rows = len(df)
     total_cols = len(df.columns)
@@ -34,11 +31,11 @@ def generate_dataset_story(df, target_column=None, focus_mode="Executive Summary
     }
 
     # Attempt LLM generation if requested and available
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = get_groq_api_key()
     api_error = None
-    if use_api and HAS_GENAI and api_key:
+    if use_api and api_key:
         try:
-            client = genai.Client(api_key=api_key)
+            client = get_groq_client()
             prompt = f"""
 You are an expert GPT-style narrative data generator.
 Analyze the following tabular dataset metadata and generate a coherent 3-paragraph {focus_mode}:
@@ -52,17 +49,27 @@ Guidelines:
 - Paragraph 3: Recommended machine learning roadmap and generative AI opportunities.
 - Format with clear professional prose. Avoid emojis. Keep explanations simple and precise for viva examination.
 """
-            response = client.models.generate_content(
-                model="gemini-3.8-flash",
-                contents=prompt
+            response = client.chat.completions.create(
+                model=TEXT_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Write a concise, factual dataset narrative using "
+                            "only the aggregate facts provided."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.2,
             )
             return {
-                "narrative": response.text.strip(),
-                "generator_type": "Transformer Autoregressive (Gemini Flash)",
+                "narrative": completion_text(response),
+                "generator_type": f"Groq chat completion ({TEXT_MODEL})",
                 "facts": facts
             }
         except Exception as exc:
-            api_error = f"{type(exc).__name__}: {exc}"
+            api_error = summarize_groq_error(exc)
 
     # Offline deterministic generator fallback
     p1 = (
@@ -88,8 +95,8 @@ Guidelines:
     return {
         "narrative": f"{p1}\n\n{p2}\n\n{p3}",
         "generator_type": (
-            "Deterministic fallback (Gemini request failed)"
-            if api_error else "Deterministic Autoregressive Fallback"
+            "Deterministic fallback (Groq request failed)"
+            if api_error else "Deterministic structured fallback (not an LLM)"
         ),
         "facts": facts,
         "api_error": api_error
@@ -106,7 +113,7 @@ def get_transformer_architectures_comparison():
             "Family": "GPT Family (Decoder-Only)",
             "Attention Type": "Causal / Masked Self-Attention (Left-to-Right only)",
             "Pre-training Objective": "Autoregressive Next-Token Prediction: max log P(w_t | w_<t)",
-            "Key Models": "GPT-2, GPT-3, GPT-4, Llama, Gemini (Decoder variant)",
+            "Key Models": "GPT-2, GPT-3, GPT-4, Llama, GPT-OSS",
             "Primary Use Cases": "Text generation, chat reasoning, code completion, narrative synthesis",
             "Why it fits our project": "Powers the natural language CSV chat and data storytelling generator."
         },

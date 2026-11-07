@@ -1,5 +1,15 @@
 
+import re
+
 import pandas as pd
+
+
+def _is_identifier_column_name(column):
+    name = str(column)
+    name = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", name)
+    name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", name)
+    tokens = set(re.findall(r"[a-z0-9]+", name.lower()))
+    return bool(tokens.intersection({"id", "identifier", "uuid", "guid"}))
 
 
 
@@ -16,11 +26,7 @@ def identify_column_types(df):
         series = df[column]
 
         # Identify ID columns (case-insensitive)
-        if (
-            name == "id"
-            or name.endswith("id")
-            or name.startswith("id_")
-        ):
+        if _is_identifier_column_name(column):
             identifiers.append(column)
 
         # Identify datetime columns

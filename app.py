@@ -52,7 +52,9 @@ from modules.multimodal import (
 )
 from modules.synthetic_data import (
     TabularCTGAN,
+    SDVCTGANSynthesizer,
     compare_real_and_synthetic,
+    is_sdv_backend_enabled,
     create_side_by_side_distribution,
     sanitize_spreadsheet_formulas
 )
@@ -81,8 +83,8 @@ st.caption("Final-Year Generative AI Project (P10)")
 st.markdown(
     """
     DataInsight AI combines deterministic pandas data profiling with Generative AI foundations:
-    transformer natural-language questioning, a PyTorch conditional tabular GAN, optional BERT embeddings,
-    chart-image understanding, local speech synthesis, and Responsible AI screening.
+    transformer natural-language questioning, custom PyTorch and SDV CTGAN tabular generation,
+    optional BERT embeddings, chart-image understanding, local speech synthesis, and Responsible AI screening.
     """
 )
 st.divider()
@@ -173,7 +175,7 @@ tabs = st.tabs([
     "4. Dataset Chat",
     "5. GenAI Foundations (U1 & U2)",
     "6. BERT & Multimodal (U3)",
-    "7. PyTorch Conditional GAN (U4)",
+    "7. Synthetic Tabular Data (U4)",
     "8. Responsible AI & Model Card (U5)"
 ])
 
@@ -345,10 +347,26 @@ with tabs[3]:
     st.header("Chat with Your Dataset")
     st.markdown(
         """
-        Ask questions in natural language.
-        Supported queries run instantly via **Fast-Path Pandas** (<10 ms).
-        Complex questions leverage **Gemini** for structured plan generation with safe execution.
+        Ask questions in natural language. Supported queries run locally via
+        **Fast-Path Pandas**. Choose Groq's preserved JSON operation-plan mode
+        or the strict AST-interpreted pandas-code mode for complex questions.
         """
+    )
+
+    chat_execution_mode = st.radio(
+        "Groq analysis mode:",
+        ["Restricted JSON operation plan", "Pandas code (strict AST interpreter)"],
+        horizontal=True,
+        help=(
+            "The pandas-code option asks Groq for one pandas expression. "
+            "A restricted AST interpreter validates and evaluates only approved "
+            "DataFrame/Series operations; it never uses eval or exec."
+        )
+    )
+    execution_mode = (
+        "pandas_code"
+        if chat_execution_mode.startswith("Pandas code")
+        else "json_plan"
     )
 
     if "chat_history" not in st.session_state:
@@ -375,7 +393,11 @@ with tabs[3]:
         with st.chat_message("assistant"):
             with st.spinner("Analyzing data..."):
                 try:
-                    resp = answer_question(df, user_q)
+                    resp = answer_question(
+                        df,
+                        user_q,
+                        execution_mode=execution_mode,
+                    )
                     st.markdown(resp["explanation"])
 
                     if show_tech_details:
@@ -557,7 +579,7 @@ with tabs[5]:
             st.markdown(story["narrative"])
             st.caption(f"Generator Engine: {story['generator_type']}")
             if story.get("api_error"):
-                st.warning(f"Gemini request failed; showing the local narrative instead: {story['api_error']}")
+                st.warning(f"Groq request failed; showing the local narrative instead: {story['api_error']}")
 
     st.divider()
 
@@ -601,7 +623,7 @@ with tabs[5]:
 
     st.markdown("#### Chart Image Understanding")
     st.caption(
-        "Optional Gemini vision analysis. The image is sent to Google only after you "
+        "Optional Groq vision analysis. The image is sent to Groq only after you "
         "select it and explicitly enable sharing below. Do not upload sensitive images."
     )
     chart_image = st.file_uploader(
@@ -613,7 +635,7 @@ with tabs[5]:
     if chart_image:
         image_digest = hashlib.sha256(chart_image.getvalue()).hexdigest()
         allow_image_sharing = st.checkbox(
-            "I agree to send this image to Gemini for analysis.",
+            "I agree to send this image to Groq for analysis.",
             key=f"chart_image_consent_{image_digest}"
         )
     chart_question = st.text_input(
@@ -624,7 +646,7 @@ with tabs[5]:
         if not chart_image:
             st.error("Choose a chart image first.")
         elif not allow_image_sharing:
-            st.error("Enable image sharing consent before requesting Gemini analysis.")
+            st.error("Enable image sharing consent before requesting Groq analysis.")
         else:
             try:
                 chart_analysis = analyze_chart_image(
@@ -640,44 +662,139 @@ with tabs[5]:
 # TAB 7: PYTORCH CONDITIONAL GAN SYNTHESIS (U4)
 # =============================================================================
 with tabs[6]:
-    st.header("PyTorch Conditional Tabular GAN ")
+    st.header("Synthetic Tabular Data Generation")
     st.markdown(
         """
-        Train a lightweight conditional GAN with one-hot categorical columns. This CPU-friendly
-        educational implementation is CTGAN-inspired, but is not the canonical CTGAN algorithm:
-        it does not use mode-specific normalization or provide differential privacy. Synthetic
-        output can memorize small datasets and must not be treated as anonymized.
+        Choose the existing lightweight custom PyTorch GAN or SDV's actual CTGAN
+        implementation. Neither backend provides a differential-privacy guarantee;
+        synthetic output can retain information about its training data.
         """
     )
+    st.caption(
+        "The generated preview contains synthetic rows only. Identifier columns "
+        "are not copied from real rows; backends generate replacement identifiers."
+    )
+
+    backend_labels = {
+        "Custom PyTorch GAN (CTGAN-inspired; not canonical CTGAN)": "custom"
+    }
+    sdv_enabled = is_sdv_backend_enabled()
+    if sdv_enabled:
+        backend_labels["SDV CTGAN (actual CTGAN implementation)"] = "sdv"
+    else:
+        st.info(
+            "SDV CTGAN is disabled by default until its BSL-1.1 terms are "
+            "reviewed for this deployment. Enable it only when authorized by "
+            "setting DATAINSIGHT_ENABLE_SDV=true."
+        )
+    selected_backend_label = st.selectbox(
+        "Synthetic data backend:",
+        list(backend_labels)
+    )
+    selected_backend = backend_labels[selected_backend_label]
 
     t_col1, t_col2 = st.columns(2)
     with t_col1:
-        gan_epochs = st.slider("Training Epochs:", min_value=10, max_value=100, value=30, step=5)
+        if selected_backend == "custom":
+            gan_epochs = st.slider(
+                "Training Epochs:",
+                min_value=10,
+                max_value=100,
+                value=30,
+                step=5
+            )
+        else:
+            gan_epochs = st.slider(
+                "Training Epochs:",
+                min_value=1,
+                max_value=300,
+                value=50,
+                step=1
+            )
     with t_col2:
-        num_synthetic_rows = st.slider("Number of Synthetic Rows to Generate:", min_value=5, max_value=100, value=15, step=5)
+        num_synthetic_rows = st.slider(
+            "Number of Synthetic Rows to Generate:",
+            min_value=5,
+            max_value=100,
+            value=15,
+            step=5
+        )
 
-    if st.button("Train Conditional GAN & Generate Synthetic Data", key="train_ctgan_btn"):
-        with st.spinner("Training PyTorch Generator & Discriminator networks..."):
-            gan = TabularCTGAN(epochs=gan_epochs, batch_size=min(16, len(df)))
-            gan.fit(df)
-            synthetic_df = gan.sample(n_samples=num_synthetic_rows)
+    dataset_hash = hashlib.sha256(
+        repr(list(df.columns)).encode("utf-8")
+        + pd.util.hash_pandas_object(df, index=True).values.tobytes()
+    ).hexdigest()
+    large_dataset = len(df) > 5000
+    proceed_with_large_dataset = True
+    if large_dataset:
+        st.warning(
+            f"This dataset has {len(df):,} rows. GAN training may be slow on CPU "
+            "and consume substantial memory."
+        )
+        proceed_with_large_dataset = st.checkbox(
+            "I understand the cost and want to train on this dataset.",
+            key="confirm_large_synthetic_training"
+        )
+
+    if st.button(
+        "Train Selected Backend & Generate Synthetic Data",
+        key="train_ctgan_btn",
+        disabled=not proceed_with_large_dataset
+    ):
+        for state_key in (
+            "synthetic_df",
+            "synthetic_backend",
+            "synthetic_training_seconds",
+            "synthetic_dataset_hash"
+        ):
+            st.session_state.pop(state_key, None)
+        try:
+            training_started = time.perf_counter()
+            with st.spinner(f"Training {selected_backend_label}..."):
+                if selected_backend == "custom":
+                    gan = TabularCTGAN(
+                        epochs=gan_epochs,
+                        batch_size=min(16, len(df))
+                    )
+                else:
+                    gan = SDVCTGANSynthesizer(
+                        epochs=gan_epochs,
+                        batch_size=100
+                    )
+                gan.fit(df)
+                training_seconds = time.perf_counter() - training_started
+                synthetic_df = gan.sample(n_samples=num_synthetic_rows)
             st.session_state["synthetic_df"] = synthetic_df
-            st.success("Conditional GAN trained and synthetic data generated.")
+            st.session_state["synthetic_backend"] = selected_backend
+            st.session_state["synthetic_training_seconds"] = training_seconds
+            st.session_state["synthetic_dataset_hash"] = dataset_hash
+            st.success("Synthetic data generated.")
+        except Exception as err:
+            st.error(f"{selected_backend_label} failed: {err}")
 
-    if "synthetic_df" in st.session_state:
+    has_current_synthetic_output = (
+        "synthetic_df" in st.session_state
+        and st.session_state.get("synthetic_backend") == selected_backend
+        and st.session_state.get("synthetic_dataset_hash") == dataset_hash
+    )
+    if has_current_synthetic_output:
         synth_data = st.session_state["synthetic_df"]
+        st.caption(
+            f"Backend: {selected_backend_label} | "
+            f"Training time: {st.session_state['synthetic_training_seconds']:.2f} seconds"
+        )
         st.subheader("Generated Synthetic Dataset")
         st.dataframe(synth_data)
 
         st.download_button(
             "Download Synthetic Dataset (.csv)",
             data=sanitize_spreadsheet_formulas(synth_data).to_csv(index=False),
-            file_name="synthetic_dataset_conditional_gan.csv",
+            file_name=f"synthetic_dataset_{selected_backend}.csv",
             mime="text/csv"
         )
         st.caption("Formula-like text values are escaped in the CSV download for spreadsheet safety.")
 
-        st.subheader("Numeric Distribution Comparison (Real vs Synthetic)")
+        st.subheader("Real vs Synthetic Comparison")
         eval_metrics = compare_real_and_synthetic(df, synth_data)
 
         score_col1, score_col2 = st.columns(2)
@@ -854,4 +971,4 @@ with tabs[7]:
 # APPLICATION FOOTER
 # -----------------------------------------------------------------------------
 st.divider()
-st.caption("DataInsight AI | Generative AI Final-Year Project (P10) | Built with Streamlit, PyTorch, Plotly & Gemini")
+st.caption("DataInsight AI | Generative AI Final-Year Project (P10) | Built with Streamlit, PyTorch, Plotly & Groq")

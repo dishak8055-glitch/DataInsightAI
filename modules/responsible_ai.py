@@ -379,7 +379,7 @@ def generate_model_card(df, target_column=None, recommended_task="Classification
     card_markdown += f"""
 ## 4. Generative AI & Safety Guardrails
 - **Code Execution Policy:** No unrestricted `eval()` or `exec()` is used. Chat requests map to a bounded operation whitelist.
-- **Privacy:** Uploaded CSVs are processed in the app session; complex chat requests and opted-in chart images are sent to Gemini when configured. Do not upload sensitive data unless authorized.
+- **Privacy:** Uploaded CSVs are processed in the app session; complex chat requests and opted-in chart images are sent to Groq when configured. Do not upload sensitive data unless authorized.
 - **Hallucination Evaluation:** A heuristic checks extracted numeric claims against sample values and summary statistics; it is not a comprehensive factuality or safety guarantee.
 - **Privacy Limitations:** Synthetic records are not differentially private and may reproduce information from small datasets. Do not treat generated rows as anonymized.
 

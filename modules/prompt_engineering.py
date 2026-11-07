@@ -71,7 +71,7 @@ Return ONLY valid JSON matching this schema."""
             "title": "Zero-Shot Prompting",
             "prompt": zero_shot,
             "description": "Direct task instruction with no prerequisite examples. Tests the model's pre-trained parametric knowledge.",
-            "viva_tip": "Works well with large instruction-tuned models like Gemini 1.5/Flash for general reasoning."
+            "viva_tip": "Works well with instruction-tuned models such as Groq-served GPT-OSS for general reasoning."
         },
         "few_shot": {
             "title": "Few-Shot In-Context Prompting",

@@ -108,7 +108,7 @@ def recommend_learning_strategy(num_samples, budget_dollars, has_gpu, latency_cr
                 "With limited labeled data or zero GPU budget, prompt engineering provides "
                 "immediate utility with zero capital outlay and no risk of overfitting."
             ),
-            "suggested_pipeline": "Use structured system prompts + few-shot CSV examples via Gemini API."
+            "suggested_pipeline": "Use structured system prompts + few-shot CSV examples via Groq API."
         }
     elif num_samples >= 500 and has_gpu and budget_dollars <= 50:
         return {

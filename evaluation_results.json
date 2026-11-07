@@ -1,0 +1,451 @@
+{
+  "generated_at_utc": "2026-11-07T05:38:03.684007+00:00",
+  "configuration": {
+    "seed": 42,
+    "custom_gan_epochs": 30,
+    "sdv_ctgan_epochs": 50,
+    "historical_external_provider_latency_runs": 5
+  },
+  "software_versions": {
+    "python": "3.11.0",
+    "pandas": "2.3.3",
+    "numpy": "2.4.6",
+    "plotly": "5.24.1",
+    "sdv": "1.28.0",
+    "streamlit": "1.66.1",
+    "torch": "2.15.0+cpu"
+  },
+  "column_type_detection": {
+    "method": "Per-column comparison with manually reviewed expected types.",
+    "datasets": [
+      {
+        "dataset": "Adult Census Income",
+        "correct": 15,
+        "total": 15,
+        "accuracy_pct": 100.0,
+        "columns": [
+          {
+            "column": "age",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "workclass",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          },
+          {
+            "column": "fnlwgt",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "education",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          },
+          {
+            "column": "education-num",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "marital-status",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          },
+          {
+            "column": "occupation",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          },
+          {
+            "column": "relationship",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          },
+          {
+            "column": "race",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          },
+          {
+            "column": "sex",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          },
+          {
+            "column": "capital-gain",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "capital-loss",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "hours-per-week",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "native-country",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          },
+          {
+            "column": "income",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          }
+        ],
+        "notes": "Types describe stored analytical roles; integer-valued ordinal quality and education-num are treated as numerical."
+      },
+      {
+        "dataset": "Palmer Penguins",
+        "correct": 8,
+        "total": 8,
+        "accuracy_pct": 100.0,
+        "columns": [
+          {
+            "column": "species",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          },
+          {
+            "column": "island",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          },
+          {
+            "column": "bill_length_mm",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "bill_depth_mm",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "flipper_length_mm",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "body_mass_g",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "sex",
+            "expected": "categorical",
+            "predicted": "categorical",
+            "correct": true
+          },
+          {
+            "column": "year",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          }
+        ],
+        "notes": "Stored numeric measurements and year are numerical."
+      },
+      {
+        "dataset": "Wine Quality Red",
+        "correct": 12,
+        "total": 12,
+        "accuracy_pct": 100.0,
+        "columns": [
+          {
+            "column": "fixed acidity",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "volatile acidity",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "citric acid",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "residual sugar",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "chlorides",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "free sulfur dioxide",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "total sulfur dioxide",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "density",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "pH",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "sulphates",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "alcohol",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "quality",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          }
+        ],
+        "notes": "Types describe stored analytical roles; integer-valued ordinal quality and education-num are treated as numerical."
+      },
+      {
+        "dataset": "Wine Quality White",
+        "correct": 12,
+        "total": 12,
+        "accuracy_pct": 100.0,
+        "columns": [
+          {
+            "column": "fixed acidity",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "volatile acidity",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "citric acid",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "residual sugar",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "chlorides",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "free sulfur dioxide",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "total sulfur dioxide",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "density",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "pH",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "sulphates",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "alcohol",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          },
+          {
+            "column": "quality",
+            "expected": "numerical",
+            "predicted": "numerical",
+            "correct": true
+          }
+        ],
+        "notes": "Types describe stored analytical roles; integer-valued ordinal quality and education-num are treated as numerical."
+      }
+    ],
+    "overall_correct": 47,
+    "overall_total": 47,
+    "overall_accuracy_pct": 100.0
+  },
+  "gan_evaluation": {
+    "historical_user_provided_reference": {
+      "dataset": "Palmer Penguins",
+      "status": "User-provided prior results; not independently reproduced",
+      "custom_gan": {
+        "distribution_similarity_pct": 56.4,
+        "correlation_similarity_pct": 79.9
+      },
+      "sdv_ctgan": {
+        "distribution_similarity_pct": 68.0,
+        "correlation_similarity_pct": 78.7
+      },
+      "training_time_seconds": null,
+      "missing_run_configuration": [
+        "epoch counts",
+        "random seed",
+        "generated row count",
+        "hardware and software versions"
+      ]
+    },
+    "fresh_run": [
+      {
+        "backend": "Custom PyTorch GAN (CTGAN-inspired; not canonical CTGAN)",
+        "epochs": 30,
+        "training_time_seconds": 26.302,
+        "generated_rows": 344,
+        "distribution_similarity_pct": 88.6,
+        "correlation_similarity_pct": 96.4,
+        "numeric_features_evaluated": 5,
+        "status": "success",
+        "error": null,
+        "dataset": "Palmer Penguins",
+        "metric_definition": "Distribution similarity is the mean of per-column Distribution Match percentages from compare_real_and_synthetic (100*(1-KS), rounded to one decimal place) over non-ID numeric columns. Correlation similarity is the existing compare_real_and_synthetic normalized Frobenius score.",
+        "features_used_for_similarity": [
+          "bill_length_mm",
+          "bill_depth_mm",
+          "flipper_length_mm",
+          "body_mass_g",
+          "year"
+        ]
+      },
+      {
+        "backend": "SDV CTGAN (actual CTGANSynthesizer)",
+        "epochs": 50,
+        "training_time_seconds": 14.39,
+        "generated_rows": 344,
+        "distribution_similarity_pct": 76.0,
+        "correlation_similarity_pct": 80.9,
+        "numeric_features_evaluated": 5,
+        "status": "success",
+        "error": null,
+        "dataset": "Palmer Penguins",
+        "metric_definition": "Distribution similarity is the mean of per-column Distribution Match percentages from compare_real_and_synthetic (100*(1-KS), rounded to one decimal place) over non-ID numeric columns. Correlation similarity is the existing compare_real_and_synthetic normalized Frobenius score.",
+        "features_used_for_similarity": [
+          "bill_length_mm",
+          "bill_depth_mm",
+          "flipper_length_mm",
+          "body_mass_g",
+          "year"
+        ]
+      }
+    ]
+  },
+  "historical_external_provider_latency": {
+    "requested_runs": 5,
+    "runs": [
+      {
+        "run": 1,
+        "status": "failed",
+        "latency_ms": 3946.95,
+        "error": "ServerError: External provider request or response could not be completed; provider details omitted."
+      },
+      {
+        "run": 2,
+        "status": "failed",
+        "latency_ms": 11775.82,
+        "error": "ServerError: External provider request or response could not be completed; provider details omitted."
+      },
+      {
+        "run": 3,
+        "status": "failed",
+        "latency_ms": 3629.54,
+        "error": "ServerError: External provider request or response could not be completed; provider details omitted."
+      },
+      {
+        "run": 4,
+        "status": "failed",
+        "latency_ms": 3440.11,
+        "error": "ClientError: External provider request or response could not be completed; provider details omitted."
+      },
+      {
+        "run": 5,
+        "status": "failed",
+        "latency_ms": 2270.1,
+        "error": "ClientError: External provider request or response could not be completed; provider details omitted."
+      }
+    ],
+    "successful_runs": 0,
+    "failed_runs": 5,
+    "mean_success_latency_ms": null
+  },
+  "deployment_check": {
+    "python_version": "3.11.0",
+    "sdv_version": "1.28.0",
+    "sdv_import": "success",
+    "note": "This local dependency/import check does not prove deployment on Streamlit Community Cloud or Hugging Face Spaces."
+  }
+}
